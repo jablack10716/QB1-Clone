@@ -15,6 +15,7 @@ export function runMigrations(): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('admin', 'player')),
+      streak INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
@@ -66,6 +67,13 @@ export function runMigrations(): void {
   // Add game_breaker column to existing predictions table if it doesn't exist
   try {
     db.exec(`ALTER TABLE predictions ADD COLUMN game_breaker INTEGER NOT NULL DEFAULT 0`);
+  } catch (error) {
+    // Column may already exist, ignore error
+  }
+  
+  // Add streak column to existing users table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN streak INTEGER NOT NULL DEFAULT 0`);
   } catch (error) {
     // Column may already exist, ignore error
   }

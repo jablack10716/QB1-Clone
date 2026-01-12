@@ -54,4 +54,13 @@ export class UserModel {
     }
     return this.create(name, role);
   }
+  
+  /**
+   * Update user's streak
+   */
+  static updateStreak(id: number, streak: number): void {
+    const db = getDb();
+    const stmt = db.prepare('UPDATE users SET streak = ? WHERE id = ?');
+    stmt.run(streak, id);
+  }
 }

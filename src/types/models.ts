@@ -7,6 +7,7 @@ export interface User {
   id: number;
   name: string;
   role: UserRole;
+  streak: number; // Current consecutive exact matches
   created_at: string;
 }
 

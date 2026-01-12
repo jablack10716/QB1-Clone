@@ -36,17 +36,6 @@
       <% if (currentPlay.status === PlayStatus.OPEN) { %>
         <div class="prediction-section">
           <h3>Make Your Prediction</h3>
-          <% if (userPrediction) { %>
-            <div class="prediction-locked">
-              <p class="current-prediction">
-                Your prediction submitted: <strong><%= userPrediction.predicted_outcome %></strong>
-                <% if (userPrediction.game_breaker) { %>
-                  <span class="game-breaker-badge">⚡ GAME BREAKER</span>
-                <% } %>
-              </p>
-              <p class="locked-message">You have locked in your prediction. Waiting for the play result...</p>
-            </div>
-          <% } else { %>
           <form method="POST" action="/games/<%= game.id %>/plays/<%= currentPlay.id %>/predict" class="prediction-form">
             <div class="top-buttons">
               <div>
@@ -106,7 +95,6 @@
               <span class="status-text">Make your selection - it will be saved automatically</span>
             </div>
           </form>
-          <% } %>
         </div>
         
         <style>
@@ -397,7 +385,6 @@
               font-style: italic;
             }
           </style>
-        </div>
         
         <script>
           // Prediction form JavaScript - only runs when elements exist
@@ -413,6 +400,51 @@
             let selectedPassDepth = null;
             let selectedPassDir = null;
             let gameBreakerActive = false;
+
+            // Initialize button states based on existing prediction
+            const existingPrediction = '<%= userPrediction ? userPrediction.predicted_outcome : '' %>';
+            const existingGameBreaker = '<%= userPrediction && userPrediction.game_breaker ? 'on' : '' %>';
+            
+            if (existingPrediction) {
+              predictionInput.value = existingPrediction;
+              
+              // Parse and set button states
+              const parts = existingPrediction.split('_');
+              if (parts[0] === 'RUN') {
+                selectedType = 'run';
+                document.querySelector('.btn-prediction-type[data-type="run"]').classList.add('active');
+                runPrediction.style.display = 'block';
+                if (parts[1]) {
+                  document.querySelector(`.btn-run-direction[data-value="${parts[1]}"]`).classList.add('active');
+                }
+              } else if (parts[0] === 'PASS') {
+                selectedType = 'pass';
+                document.querySelector('.btn-prediction-type[data-type="pass"]').classList.add('active');
+                passPrediction.style.display = 'block';
+                if (parts[1] && parts[1] !== 'INCOMPLETE') {
+                  document.querySelector(`.btn-pass-depth[data-depth="${parts[1].toLowerCase()}"]`).classList.add('active');
+                  selectedPassDepth = parts[1].toLowerCase();
+                }
+                if (parts[2]) {
+                  document.querySelector(`.btn-pass-direction[data-dir="${parts[2].toLowerCase()}"]`).classList.add('active');
+                  selectedPassDir = parts[2].toLowerCase();
+                }
+              }
+            }
+            
+            if (existingGameBreaker) {
+              gameBreakerActive = true;
+              if (gameBreakerBtn) {
+                gameBreakerBtn.classList.add('active');
+                gameBreakerBtn.textContent = '⚡ ACTIVATED ⚡';
+                gameBreakerInput.value = 'on';
+                const statusText = gameBreakerBtn.parentElement.querySelector('.game-breaker-status');
+                if (statusText) {
+                  statusText.textContent = 'ACTIVATED!';
+                  statusText.style.color = '#00cc00';
+                }
+              }
+            }
 
             // Handle Game Breaker button toggle - only if button exists
             if (gameBreakerBtn && !gameBreakerBtn.disabled) {
@@ -445,6 +477,21 @@
                 }
                 // Game Breaker just toggles the flag - it will be saved with the prediction
               });
+            }
+            
+            // Initialize status
+            const statusDiv = document.getElementById('prediction-status');
+            const statusIcon = statusDiv.querySelector('.status-icon');
+            const statusText = statusDiv.querySelector('.status-text');
+            
+            if (existingPrediction) {
+              statusIcon.textContent = '✅';
+              statusText.textContent = 'Prediction saved - you can change it until admin locks';
+              statusDiv.className = 'prediction-status saved';
+            } else {
+              statusIcon.textContent = '💡';
+              statusText.textContent = 'Make your selection - it will be saved automatically';
+              statusDiv.className = 'prediction-status';
             }
             
             // Auto-save prediction function
@@ -490,6 +537,13 @@
                   statusIcon.textContent = '✓';
                   statusText.textContent = 'Prediction saved: ' + prediction + (gameBreaker ? ' ⚡' : '');
                   statusDiv.className = 'prediction-status saved';
+                  
+                  // Re-enable buttons
+                  typeButtons.forEach(btn => btn.disabled = false);
+                  document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
+                  document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
+                  document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
+                  if (gameBreakerBtn) gameBreakerBtn.disabled = false;
                 } else {
                   statusIcon.textContent = '⚠️';
                   statusText.textContent = 'Error saving prediction';
@@ -646,25 +700,6 @@
           });
         </script>
         
-      <% } else if (currentPlay.status === PlayStatus.LOCKED) { %>
-        <div class="play-locked">
-          <h3>🔒 Predictions Locked</h3>
-          <p>The play is about to start! Wait for the result...</p>
-          <% if (userPrediction) { %>
-            <p class="your-prediction">
-              Your prediction: <strong><%= userPrediction.predicted_outcome %></strong>
-              <% if (userPrediction.game_breaker) { %>
-                <span class="game-breaker-badge">⚡ GAME BREAKER</span>
-              <% } %>
-            </p>
-          <% } else { %>
-            <p class="no-prediction">You didn't make a prediction for this play.</p>
-          <% } %>
-          <div class="loading-indicator">
-            <div class="spinner"></div>
-            <p>Page will auto-refresh</p>
-          </div>
-        </div>
       <% } else if (currentPlay.status === PlayStatus.SCORED) { %>
         <div class="play-result">
           <h3>✓ Play Complete</h3>
@@ -696,21 +731,57 @@
           
           <p class="waiting-message">Waiting for the next play...</p>
         </div>
+      <% } else { %>
+        <div class="play-locked">
+          <h3>🔒 Predictions Locked</h3>
+          <p>The play is about to start! Wait for the result...</p>
+          <% if (userPrediction) { %>
+            <p class="your-prediction">
+              Your prediction: <strong><%= userPrediction.predicted_outcome %></strong>
+              <% if (userPrediction.game_breaker) { %>
+                <span class="game-breaker-badge">⚡ GAME BREAKER</span>
+              <% } %>
+            </p>
+          <% } else { %>
+            <p class="no-prediction">You didn't make a prediction for this play.</p>
+          <% } %>
+        </div>
       <% } %>
     </div>
     
     <div class="scoring-info card">
       <h3>Scoring Guide</h3>
-      <ul>
-        <li><strong>100 points</strong> - Exact match</li>
-        <li><strong>40 points</strong> - Correct category (run vs pass)</li>
-        <li><strong>0 points</strong> - Incorrect prediction</li>
-      </ul>
-      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+      <div style="margin-bottom: 15px;">
+        <h4 style="margin-bottom: 8px;">Base Points (Tier System)</h4>
+        <ul style="font-size: 14px;">
+          <li><strong>RUN</strong>: 140 points</li>
+          <li><strong>PASS</strong>: 220 points</li>
+          <li><strong>+ Direction</strong> (LEFT/CENTER/RIGHT): +70 points</li>
+          <li><strong>+ Pass Depth</strong>: BACK +380, SHORT +200, LONG +290</li>
+        </ul>
+        <p style="font-size: 13px; color: #666; margin-top: 8px;">
+          <em>Full points only for exact match on all predicted tiers. Partial credit (type only) for correct RUN/PASS.</em>
+        </p>
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <h4 style="margin-bottom: 8px;">Streak Multipliers</h4>
+        <ul style="font-size: 14px;">
+          <li><strong>0 matches</strong>: 1.0×</li>
+          <li><strong>1-2 matches</strong>: 1.2×</li>
+          <li><strong>3-4 matches</strong>: 1.5×</li>
+          <li><strong>5-9 matches</strong>: 2.0×</li>
+          <li><strong>10+ matches</strong>: 3.0×</li>
+        </ul>
+        <p style="font-size: 13px; color: #666; margin-top: 8px;">
+          <em>Streaks reset on wrong type, hold on partial matches.</em>
+        </p>
+      </div>
+      
+      <div style="padding-top: 15px; border-top: 1px solid #ddd;">
         <h4 style="margin-bottom: 10px;">⚡ Game Breaker</h4>
         <p style="font-size: 14px; color: #666;">
-          Use Game Breaker once per drive (resets at 1st down) to multiply your points for that play. 
-          Points will be updated once scoring is implemented.
+          Use once per drive (resets at 1st down) for ×2 multiplier on base score (before streak).
         </p>
       </div>
     </div>
@@ -958,31 +1029,10 @@
   const currentPlayStatus = '<%= currentPlay?.status %>';
   const hasPrediction = <%= userPrediction ? 'true' : 'false' %>;
   
-  // Determine refresh behavior based on play status
-  let shouldRefresh = false;
-  let refreshInterval = 5000; // Default 5 seconds
+  // Always refresh frequently to check for status changes
+  const refreshInterval = 1000; // 1 second
   
-  if (!currentPlayStatus) {
-    // No play yet - waiting for first play
-    shouldRefresh = true;
-    refreshInterval = 3000;
-  } else if (currentPlayStatus === 'open' && hasPrediction) {
-    // Play open but prediction submitted - wait for result
-    shouldRefresh = true;
-    refreshInterval = 2000;
-  } else if (currentPlayStatus === 'locked') {
-    // Play locked - wait for scoring
-    shouldRefresh = true;
-    refreshInterval = 2000;
-  } else if (currentPlayStatus === 'scored') {
-    // Play scored - refresh to show result, then stop
-    shouldRefresh = true;
-    refreshInterval = 2000;
-  }
-  
-  if (shouldRefresh) {
-    setTimeout(() => {
-      window.location.reload();
-    }, refreshInterval);
-  }
+  setTimeout(() => {
+    window.location.reload();
+  }, refreshInterval);
 </script>

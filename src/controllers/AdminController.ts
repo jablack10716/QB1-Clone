@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GameModel } from '../models/Game';
 import { PlayModel } from '../models/Play';
 import { PredictionModel } from '../models/Prediction';
+import { UserModel } from '../models/User';
 import { GameStatus, PlayStatus, PlayOutcome } from '../types/enums';
 import { calculateScore } from '../utils/scoring';
 
@@ -149,9 +150,22 @@ export class AdminController {
       console.log(`Found ${predictions.length} predictions for play ${playId}`);
       
       predictions.forEach(prediction => {
-        const score = calculateScore(prediction.predicted_outcome, actual_outcome as PlayOutcome);
-        PredictionModel.updatePoints(prediction.id, score);
-        console.log(`Updated prediction ${prediction.id}: score = ${score}`);
+        const user = UserModel.findById(prediction.user_id);
+        if (!user) {
+          console.error(`User ${prediction.user_id} not found for prediction ${prediction.id}`);
+          return;
+        }
+        
+        const result = calculateScore(
+          prediction.predicted_outcome, 
+          actual_outcome as PlayOutcome,
+          user.streak,
+          prediction.game_breaker === 1
+        );
+        
+        PredictionModel.updatePoints(prediction.id, result.score);
+        UserModel.updateStreak(prediction.user_id, result.newStreak);
+        console.log(`Updated prediction ${prediction.id}: score = ${result.score}, new streak = ${result.newStreak}`);
       });
       
       res.redirect(`/admin/games/${gameId}`);
@@ -189,8 +203,21 @@ export class AdminController {
     // Recalculate scores for all predictions on this play
     const predictions = PredictionModel.findByPlayId(playId);
     predictions.forEach(prediction => {
-      const score = calculateScore(prediction.predicted_outcome, actual_outcome as PlayOutcome);
-      PredictionModel.updatePoints(prediction.id, score);
+      const user = UserModel.findById(prediction.user_id);
+      if (!user) {
+        console.error(`User ${prediction.user_id} not found for prediction ${prediction.id}`);
+        return;
+      }
+      
+      const result = calculateScore(
+        prediction.predicted_outcome, 
+        actual_outcome as PlayOutcome,
+        user.streak,
+        prediction.game_breaker === 1
+      );
+      
+      PredictionModel.updatePoints(prediction.id, result.score);
+      UserModel.updateStreak(prediction.user_id, result.newStreak);
     });
     
     res.redirect(`/admin/games/${gameId}`);
