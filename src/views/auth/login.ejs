@@ -1,0 +1,52 @@
+<div class="login-container">
+  <div class="card">
+    <h1>Welcome to QB1 Clone</h1>
+    <p class="subtitle">Play-by-Play Football Prediction Game</p>
+    
+    <% if (error) { %>
+      <div class="alert alert-error">
+        <%= error %>
+      </div>
+    <% } %>
+    
+    <form method="POST" action="/login" class="login-form">
+      <div class="form-group">
+        <label for="name">Your Name</label>
+        <input 
+          type="text" 
+          id="name" 
+          name="name" 
+          required 
+          placeholder="Enter your display name"
+          autocomplete="off"
+        >
+      </div>
+      
+      <div class="form-group">
+        <label>Choose Your Role</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="role" value="player" required>
+            <span>Player - Join and predict plays</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="role" value="admin" required>
+            <span>Admin - Create and manage games</span>
+          </label>
+        </div>
+      </div>
+      
+      <button type="submit" class="btn btn-primary btn-large">Get Started</button>
+    </form>
+    
+    <div class="info-section">
+      <h3>How It Works</h3>
+      <ul>
+        <li><strong>Admin</strong> creates a game and manages each play</li>
+        <li><strong>Players</strong> predict what will happen on each play</li>
+        <li>Earn points for correct predictions!</li>
+        <li>Check the leaderboard to see who's winning</li>
+      </ul>
+    </div>
+  </div>
+</div>

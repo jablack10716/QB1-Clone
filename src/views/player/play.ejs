@@ -1,0 +1,365 @@
+<div class="player-play">
+  <div class="page-header">
+    <div>
+      <h1><%= game.name %></h1>
+      <span class="badge badge-<%= game.status %>"><%= game.status %></span>
+    </div>
+    <div class="header-actions">
+      <a href="/games/<%= game.id %>/leaderboard" class="btn btn-secondary">Leaderboard</a>
+      <a href="/games/join" class="btn btn-secondary">Back</a>
+    </div>
+  </div>
+  
+  <% if (!currentPlay) { %>
+    <div class="card">
+      <p class="empty-state">Waiting for the next play... The admin will start the game soon.</p>
+      <div class="loading-indicator">
+        <div class="spinner"></div>
+        <p>Page will auto-refresh</p>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="card current-play">
+      <h2>Play #<%= currentPlay.sequence_number %></h2>
+      
+      <div class="play-info">
+        <div class="play-detail">
+          <span class="label">Quarter:</span>
+          <span class="value"><%= currentPlay.quarter %></span>
+        </div>
+        <div class="play-detail">
+          <span class="label">Down:</span>
+          <span class="value"><%= currentPlay.down %></span>
+        </div>
+        <div class="play-detail">
+          <span class="label">Distance:</span>
+          <span class="value"><%= currentPlay.distance %> yards</span>
+        </div>
+        <div class="play-detail">
+          <span class="label">Yard Line:</span>
+          <span class="value"><%= currentPlay.yard_line %></span>
+        </div>
+      </div>
+      
+      <% if (currentPlay.status === PlayStatus.OPEN) { %>
+        <div class="prediction-section">
+          <h3>Make Your Prediction</h3>
+          <% if (userPrediction) { %>
+            <div class="prediction-locked">
+              <p class="current-prediction">
+                Your prediction submitted: <strong><%= userPrediction.predicted_outcome %></strong>
+              </p>
+              <p class="locked-message">You have locked in your prediction. Waiting for the play result...</p>
+            </div>
+          <% } else { %>
+          <form method="POST" action="/games/<%= game.id %>/plays/<%= currentPlay.id %>/predict" class="prediction-form">
+            <h4>Select Play Type</h4>
+            <div class="button-group prediction-buttons">
+              <button type="button" class="btn btn-prediction-type" data-type="run">RUN</button>
+              <button type="button" class="btn btn-prediction-type" data-type="pass">PASS</button>
+            </div>
+
+            <!-- Run Direction Buttons -->
+            <div id="run-prediction" style="display: none; margin-top: 20px;">
+              <h4>Select Direction</h4>
+              <div class="button-group prediction-buttons">
+                <button type="button" class="btn btn-run-direction" data-value="RUN_LEFT">LEFT</button>
+                <button type="button" class="btn btn-run-direction" data-value="RUN_CENTER">CENTER</button>
+                <button type="button" class="btn btn-run-direction" data-value="RUN_RIGHT">RIGHT</button>
+              </div>
+            </div>
+
+            <!-- Pass Options Buttons -->
+            <div id="pass-prediction" style="display: none; margin-top: 20px;">
+              <h4>Select Pass Options (Pick Depth and/or Direction)</h4>
+              <div class="button-group prediction-buttons">
+                <button type="button" class="btn btn-pass-depth" data-depth="BACK">BACK</button>
+                <button type="button" class="btn btn-pass-depth" data-depth="SHORT">SHORT</button>
+                <button type="button" class="btn btn-pass-depth" data-depth="LONG">LONG</button>
+                <button type="button" class="btn btn-pass-direction" data-dir="LEFT">LEFT</button>
+                <button type="button" class="btn btn-pass-direction" data-dir="CENTER">CENTER</button>
+                <button type="button" class="btn btn-pass-direction" data-dir="RIGHT">RIGHT</button>
+              </div>
+            </div>
+
+
+            <!-- Hidden input for the prediction value -->
+            <input type="hidden" name="predicted_outcome" id="predicted_outcome" required>
+
+            <button type="submit" class="btn btn-primary btn-large" style="margin-top: 20px;">Submit Prediction</button>
+          </form>
+          <% } %>
+
+          <script>
+            document.addEventListener('DOMContentLoaded', function() {
+              const typeButtons = document.querySelectorAll('.btn-prediction-type');
+              const runPrediction = document.getElementById('run-prediction');
+              const passPrediction = document.getElementById('pass-prediction');
+              const predictionInput = document.getElementById('predicted_outcome');
+              let selectedType = null;
+              let selectedPassDepth = null;
+              let selectedPassDir = null;
+
+              // Handle play type selection (toggle on click)
+              typeButtons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  const type = this.dataset.type;
+                  
+                  // If clicking the same button, toggle it off
+                  if (selectedType === type) {
+                    selectedType = null;
+                    typeButtons.forEach(b => b.classList.remove('active'));
+                    runPrediction.style.display = 'none';
+                    passPrediction.style.display = 'none';
+                    predictionInput.value = '';
+                    selectedPassDepth = null;
+                    selectedPassDir = null;
+                    // Clear all direction button states
+                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.btn-pass-option').forEach(b => b.classList.remove('active'));
+                  } else {
+                    // Select new type
+                    selectedType = type;
+                    typeButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show/hide appropriate sections
+                    runPrediction.style.display = type === 'run' ? 'block' : 'none';
+                    passPrediction.style.display = type === 'pass' ? 'block' : 'none';
+                    
+                    // Clear the prediction input
+                    predictionInput.value = '';
+                    selectedPassDepth = null;
+                    selectedPassDir = null;
+                    
+                    // Clear previous selections
+                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.btn-pass-option').forEach(b => b.classList.remove('active'));
+                  }
+                });
+              });
+
+              // Handle run direction selection
+              let selectedRunDir = null;
+              document.querySelectorAll('.btn-run-direction').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  const dir = this.dataset.value;
+                  
+                  // If clicking the same button, toggle it off
+                  if (selectedRunDir === dir) {
+                    selectedRunDir = null;
+                    predictionInput.value = '';
+                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                  } else {
+                    selectedRunDir = dir;
+                    predictionInput.value = dir;
+                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                  }
+                });
+              });
+
+              // Handle pass depth selection
+              document.querySelectorAll('.btn-pass-depth').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  const depth = this.dataset.depth;
+                  
+                  // If clicking the same button, toggle it off
+                  if (selectedPassDepth === depth) {
+                    selectedPassDepth = null;
+                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                  } else {
+                    selectedPassDepth = depth;
+                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                  }
+                  
+                  updatePassPrediction();
+                });
+              });
+
+              // Handle pass direction selection
+              document.querySelectorAll('.btn-pass-direction').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  const dir = this.dataset.dir;
+                  
+                  // If clicking the same button, toggle it off
+                  if (selectedPassDir === dir) {
+                    selectedPassDir = null;
+                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                  } else {
+                    selectedPassDir = dir;
+                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                  }
+                  
+                  updatePassPrediction();
+                });
+              });
+
+
+              function updatePassPrediction() {
+                // Build pass prediction from selected depth and/or direction
+                let passParts = ['PASS'];
+                
+                if (selectedPassDepth) {
+                  passParts.push(selectedPassDepth);
+                }
+                
+                if (selectedPassDir) {
+                  passParts.push(selectedPassDir);
+                }
+                
+                // User must select at least depth or direction
+                if (passParts.length > 1) {
+                  predictionInput.value = passParts.join('_');
+                } else {
+                  predictionInput.value = '';
+                }
+              }
+
+              document.querySelector('.prediction-form').addEventListener('submit', function(e) {
+                if (!predictionInput.value) {
+                  e.preventDefault();
+                  alert('Please select a complete prediction');
+                }
+              });
+            });
+          </script>
+
+          <style>
+            .button-group {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 10px;
+              margin: 10px 0;
+            }
+
+            .btn-prediction-type,
+            .btn-run-direction,
+            .btn-pass-depth,
+            .btn-pass-direction,
+            .btn-pass-option {
+              flex: 1;
+              min-width: 70px;
+              padding: 12px 16px;
+              font-size: 14px;
+              font-weight: bold;
+              border: 2px solid #ccc;
+              border-radius: 6px;
+              background-color: #f5f5f5;
+              cursor: pointer;
+              transition: all 0.2s;
+            }
+
+            .btn-prediction-type:hover,
+            .btn-run-direction:hover,
+            .btn-pass-depth:hover,
+            .btn-pass-direction:hover,
+            .btn-pass-option:hover {
+              border-color: #007bff;
+              background-color: #e7f3ff;
+            }
+
+            .btn-prediction-type.active,
+            .btn-run-direction.active,
+            .btn-pass-depth.active,
+            .btn-pass-direction.active,
+            .btn-pass-option.active {
+              border-color: #007bff;
+              background-color: #007bff;
+              color: white;
+            }
+
+            .prediction-locked {
+              padding: 15px;
+              background-color: #e8f5e9;
+              border-left: 4px solid #4caf50;
+              border-radius: 4px;
+              margin-bottom: 20px;
+            }
+
+            .current-prediction {
+              margin: 10px 0;
+              font-size: 16px;
+            }
+
+            .locked-message {
+              color: #666;
+              font-style: italic;
+              margin-top: 10px;
+            }
+          </style>
+        </div>
+      <% } else if (currentPlay.status === PlayStatus.LOCKED) { %>
+        <div class="play-locked">
+          <h3>🔒 Predictions Locked</h3>
+          <p>The play is about to start! Wait for the result...</p>
+          <% if (userPrediction) { %>
+            <p class="your-prediction">Your prediction: <strong><%= userPrediction.predicted_outcome %></strong></p>
+          <% } else { %>
+            <p class="no-prediction">You didn't make a prediction for this play.</p>
+          <% } %>
+          <div class="loading-indicator">
+            <div class="spinner"></div>
+            <p>Page will auto-refresh</p>
+          </div>
+        </div>
+      <% } else if (currentPlay.status === PlayStatus.SCORED) { %>
+        <div class="play-result">
+          <h3>✓ Play Complete</h3>
+          <p><strong>Actual Outcome:</strong> <%= currentPlay.actual_outcome %></p>
+          
+          <% if (userPrediction) { %>
+            <div class="result-comparison">
+              <p><strong>Your Prediction:</strong> <%= userPrediction.predicted_outcome %></p>
+              <p class="points-earned <%= userPrediction.points_awarded > 0 ? 'success' : 'neutral' %>">
+                <strong>Points Earned:</strong> <%= userPrediction.points_awarded %>
+              </p>
+              
+              <% if (userPrediction.points_awarded === 100) { %>
+                <p class="result-message success">🎉 Perfect prediction!</p>
+              <% } else if (userPrediction.points_awarded === 40) { %>
+                <p class="result-message partial">👍 Partial match - good guess!</p>
+              <% } else { %>
+                <p class="result-message">Better luck on the next play!</p>
+              <% } %>
+            </div>
+          <% } else { %>
+            <p class="no-prediction">You didn't make a prediction for this play.</p>
+          <% } %>
+          
+          <p class="waiting-message">Waiting for the next play...</p>
+        </div>
+      <% } %>
+    </div>
+    
+    <div class="scoring-info card">
+      <h3>Scoring Guide</h3>
+      <ul>
+        <li><strong>100 points</strong> - Exact match</li>
+        <li><strong>40 points</strong> - Correct category (run vs pass)</li>
+        <li><strong>0 points</strong> - Incorrect prediction</li>
+      </ul>
+    </div>
+  <% } %>
+</div>
+
+<script>
+  // Auto-refresh every 5 seconds to check for play updates
+  // But don't refresh if user is actively making a prediction
+  const currentPlayStatus = '<%= currentPlay?.status %>';
+  if (currentPlayStatus !== 'open') {
+    setTimeout(() => {
+      window.location.reload();
+    }, 5000);
+  }
+</script>

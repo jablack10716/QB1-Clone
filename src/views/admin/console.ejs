@@ -1,0 +1,318 @@
+<div class="admin-console">
+  <div class="page-header">
+    <div>
+      <h1><%= game.name %></h1>
+      <span class="badge badge-<%= game.status %>"><%= game.status %></span>
+    </div>
+    <div class="header-actions">
+      <a href="/games/<%= game.id %>/leaderboard" class="btn btn-secondary">View Leaderboard</a>
+      <a href="/admin/games" class="btn btn-secondary">Back to Games</a>
+    </div>
+  </div>
+  
+  <!-- Game Status Controls -->
+  <div class="card">
+    <h2>Game Status</h2>
+    <form method="POST" action="/admin/games/<%= game.id %>/status" class="inline-form">
+      <select name="status" class="form-control">
+        <option value="<%= GameStatus.PENDING %>" <%= game.status === GameStatus.PENDING ? 'selected' : '' %>>Pending</option>
+        <option value="<%= GameStatus.LIVE %>" <%= game.status === GameStatus.LIVE ? 'selected' : '' %>>Live</option>
+        <option value="<%= GameStatus.FINISHED %>" <%= game.status === GameStatus.FINISHED ? 'selected' : '' %>>Finished</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Update Status</button>
+    </form>
+  </div>
+  
+  <!-- Current Play -->
+  <% if (currentPlay) { %>
+    <div class="card current-play">
+      <h2>Current Play #<%= currentPlay.sequence_number %></h2>
+      
+      <div class="play-info">
+        <div class="play-detail">
+          <span class="label">Quarter:</span>
+          <span class="value"><%= currentPlay.quarter %></span>
+        </div>
+        <div class="play-detail">
+          <span class="label">Down:</span>
+          <span class="value"><%= currentPlay.down %></span>
+        </div>
+        <div class="play-detail">
+
+          <span class="label">Status:</span>
+          <span class="badge badge-<%= currentPlay.status %>"><%= currentPlay.status %></span>
+        </div>
+      </div>
+      
+      <% if (currentPlay.status === PlayStatus.OPEN) { %>
+        <div class="play-actions">
+          <form method="POST" action="/admin/games/<%= game.id %>/plays/<%= currentPlay.id %>/lock">
+            <button type="submit" class="btn btn-warning btn-large">🔒 Lock Predictions</button>
+          </form>
+        </div>
+      <% } else if (currentPlay.status === PlayStatus.LOCKED) { %>
+        <div class="play-actions">
+          <form method="POST" action="/admin/games/<%= game.id %>/plays/<%= currentPlay.id %>/score" class="score-form">
+            <h3>Select Outcome</h3>
+            
+            <!-- Step 1: Outcome Type Buttons -->
+            <div class="button-group outcome-buttons">
+              <button type="button" class="btn btn-outcome" data-outcome="run">RUN</button>
+              <button type="button" class="btn btn-outcome" data-outcome="pass">PASS</button>
+            </div>
+
+            <!-- Step 2: Direction Buttons (Run) -->
+            <div id="run-directions" class="button-group" style="display: none;">
+              <button type="button" class="btn btn-direction" data-value="RUN_LEFT">LEFT</button>
+              <button type="button" class="btn btn-direction" data-value="RUN_CENTER">CENTER</button>
+              <button type="button" class="btn btn-direction" data-value="RUN_RIGHT">RIGHT</button>
+            </div>
+
+            <!-- Step 2: Pass Type Buttons -->
+            <div id="pass-types" class="button-group" style="display: none;">
+              <h4 style="width: 100%; margin-bottom: 10px;">Select Depth</h4>
+              <button type="button" class="btn btn-pass-depth" data-depth="BACK">BACK</button>
+              <button type="button" class="btn btn-pass-depth" data-depth="SHORT">SHORT</button>
+              <button type="button" class="btn btn-pass-depth" data-depth="LONG">LONG</button>
+            </div>
+
+            <div id="pass-directions" class="button-group" style="display: none; margin-top: 15px;">
+              <h4 style="width: 100%; margin-bottom: 10px;">Select Direction</h4>
+              <button type="button" class="btn btn-pass-direction" data-dir="LEFT">LEFT</button>
+              <button type="button" class="btn btn-pass-direction" data-dir="CENTER">CENTER</button>
+              <button type="button" class="btn btn-pass-direction" data-dir="RIGHT">RIGHT</button>
+            </div>
+
+            <div id="pass-incomplete" class="button-group" style="display: none; margin-top: 15px;">
+              <button type="button" class="btn btn-pass-option" data-value="PASS_INCOMPLETE">INCOMPLETE</button>
+            </div>
+
+
+            <!-- Hidden input to store the final outcome -->
+            <input type="hidden" name="actual_outcome" id="actual_outcome" required>
+
+            <button type="submit" class="btn btn-success btn-large" style="margin-top: 20px;">✓ Score Play</button>
+          </form>
+
+          <script>
+            document.addEventListener('DOMContentLoaded', function() {
+              const outcomeButtons = document.querySelectorAll('.btn-outcome');
+              const runDirections = document.getElementById('run-directions');
+              const passTypes = document.getElementById('pass-types');
+              const passDirections = document.getElementById('pass-directions');
+              const passIncomplete = document.getElementById('pass-incomplete');
+              const outcomeInput = document.getElementById('actual_outcome');
+              let selectedOutcomeType = null;
+              let selectedPassDepth = null;
+              let selectedPassDir = null;
+
+              // Handle outcome type selection
+              outcomeButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  selectedOutcomeType = this.dataset.outcome;
+                  
+                  // Update button states
+                  outcomeButtons.forEach(btn => btn.classList.remove('active'));
+                  this.classList.add('active');
+                  
+                  // Show/hide appropriate buttons
+                  runDirections.style.display = selectedOutcomeType === 'run' ? 'flex' : 'none';
+                  passTypes.style.display = selectedOutcomeType === 'pass' ? 'flex' : 'none';
+                  passDirections.style.display = 'none';
+                  passIncomplete.style.display = selectedOutcomeType === 'pass' ? 'flex' : 'none';
+                  
+                  // Clear the outcome input
+                  outcomeInput.value = '';
+                  selectedPassDepth = null;
+                  selectedPassDir = null;
+                });
+              });
+
+              // Handle run direction selection
+              document.querySelectorAll('.btn-direction').forEach(button => {
+                button.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  outcomeInput.value = this.dataset.value;
+                  
+                  // Update button states
+                  document.querySelectorAll('.btn-direction').forEach(btn => btn.classList.remove('active'));
+                  this.classList.add('active');
+                });
+              });
+
+              // Handle pass depth selection
+              document.querySelectorAll('.btn-pass-depth').forEach(button => {
+                button.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  selectedPassDepth = this.dataset.depth;
+                  passDirections.style.display = 'flex';
+                  
+                  // Update button states
+                  document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.classList.remove('active'));
+                  this.classList.add('active');
+                  
+                  updatePassOutcome();
+                });
+              });
+
+              // Handle pass direction selection
+              document.querySelectorAll('.btn-pass-direction').forEach(button => {
+                button.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  selectedPassDir = this.dataset.dir;
+                  
+                  // Update button states
+                  document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.classList.remove('active'));
+                  this.classList.add('active');
+                  
+                  updatePassOutcome();
+                });
+              });
+
+              // Handle incomplete pass
+              document.querySelectorAll('.btn-pass-option').forEach(button => {
+                button.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  outcomeInput.value = this.dataset.value;
+                  
+                  // Update button states
+                  document.querySelectorAll('.btn-pass-option').forEach(btn => btn.classList.remove('active'));
+                  this.classList.add('active');
+                  
+                  // Clear depth and direction selections
+                  document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.classList.remove('active'));
+                  passDirections.style.display = 'none';
+                  selectedPassDepth = null;
+                  selectedPassDir = null;
+                });
+              });
+
+
+              function updatePassOutcome() {
+                if (selectedPassDepth && selectedPassDir) {
+                  outcomeInput.value = `PASS_${selectedPassDepth}_${selectedPassDir}`;
+                } else {
+                  outcomeInput.value = '';
+                }
+              }
+            });
+          </script>
+        </div>
+
+        <style>
+          .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+          }
+
+          .btn-outcome,
+          .btn-direction,
+          .btn-pass-depth,
+          .btn-pass-direction,
+          .btn-pass-option {
+            flex: 1;
+            min-width: 80px;
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid #ccc;
+            border-radius: 6px;
+            background-color: #f5f5f5;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+
+          .btn-outcome:hover,
+          .btn-direction:hover,
+          .btn-pass-depth:hover,
+          .btn-pass-direction:hover,
+          .btn-pass-option:hover {
+            border-color: #007bff;
+            background-color: #e7f3ff;
+          }
+
+          .btn-outcome.active,
+          .btn-direction.active,
+          .btn-pass-depth.active,
+          .btn-pass-direction.active,
+          .btn-pass-option.active {
+            border-color: #007bff;
+            background-color: #007bff;
+            color: white;
+          }
+        </style>
+      <% } else if (currentPlay.status === PlayStatus.SCORED) { %>
+        <div class="play-result">
+          <p><strong>Actual Outcome:</strong> <%= currentPlay.actual_outcome %></p>
+          <p class="success">Play scored! Points have been awarded.</p>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+  
+  <!-- Create New Play -->
+  <div class="card">
+    <h2>Create Next Play</h2>
+    <form method="POST" action="/admin/games/<%= game.id %>/plays" class="create-play-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="quarter">Quarter</label>
+          <select name="quarter" id="quarter" required class="form-control">
+            <option value="1">1st Quarter</option>
+            <option value="2">2nd Quarter</option>
+            <option value="3">3rd Quarter</option>
+            <option value="4">4th Quarter</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="down">Down</label>
+          <select name="down" id="down" required class="form-control">
+            <option value="1">1st Down</option>
+            <option value="2">2nd Down</option>
+            <option value="3">3rd Down</option>
+            <option value="4">4th Down</option>
+          </select>
+        </div>
+      </div>
+      
+      <button type="submit" class="btn btn-primary btn-large">▶️ Next Play</button>
+    </form>
+  </div>
+  
+  <!-- Play History -->
+  <% if (allPlays.length > 0) { %>
+    <div class="card">
+      <h2>Play History</h2>
+      <div class="plays-table">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Quarter</th>
+              <th>Down</th>
+              <th>Status</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% allPlays.forEach(play => { %>
+              <tr class="<%= play.id === currentPlay?.id ? 'current' : '' %>">
+                <td><%= play.sequence_number %></td>
+                <td><%= play.quarter %></td>
+                <td><%= play.down %></td>
+
+                <td><span class="badge badge-<%= play.status %>"><%= play.status %></span></td>
+                <td><%= play.actual_outcome || '-' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% } %>
+</div>

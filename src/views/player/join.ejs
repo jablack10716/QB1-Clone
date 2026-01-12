@@ -1,0 +1,26 @@
+<div class="player-join">
+  <div class="page-header">
+    <h1>Join a Game</h1>
+    <p>Select a game to start making predictions</p>
+  </div>
+  
+  <% if (games.length === 0) { %>
+    <div class="card">
+      <p class="empty-state">No active games available. Please wait for an admin to create a game.</p>
+    </div>
+  <% } else { %>
+    <div class="games-grid">
+      <% games.forEach(game => { %>
+        <div class="card game-card">
+          <h3><%= game.name %></h3>
+          <span class="badge badge-<%= game.status %>"><%= game.status %></span>
+          <p class="game-date">Created <%= new Date(game.created_at).toLocaleDateString() %></p>
+          <div class="card-actions">
+            <a href="/games/<%= game.id %>/play" class="btn btn-primary btn-large">Join Game</a>
+            <a href="/games/<%= game.id %>/leaderboard" class="btn btn-secondary">View Leaderboard</a>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>

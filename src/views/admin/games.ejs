@@ -1,0 +1,44 @@
+<div class="admin-games">
+  <div class="page-header">
+    <h1>Game Management</h1>
+    <p>Create and manage football prediction games</p>
+  </div>
+  
+  <div class="card">
+    <h2>Create New Game</h2>
+    <form method="POST" action="/admin/games" class="inline-form">
+      <input 
+        type="text" 
+        name="name" 
+        placeholder="Game name (e.g., Bears vs Packers - Week 5)" 
+        required
+        class="form-control"
+      >
+      <button type="submit" class="btn btn-primary">Create Game</button>
+    </form>
+  </div>
+  
+  <div class="card">
+    <h2>All Games</h2>
+    
+    <% if (games.length === 0) { %>
+      <p class="empty-state">No games created yet. Create your first game above!</p>
+    <% } else { %>
+      <div class="games-list">
+        <% games.forEach(game => { %>
+          <div class="game-item">
+            <div class="game-info">
+              <h3><%= game.name %></h3>
+              <span class="badge badge-<%= game.status %>"><%= game.status %></span>
+              <p class="game-date">Created <%= new Date(game.created_at).toLocaleDateString() %></p>
+            </div>
+            <div class="game-actions">
+              <a href="/admin/games/<%= game.id %>" class="btn btn-primary">Manage</a>
+              <a href="/games/<%= game.id %>/leaderboard" class="btn btn-secondary">Leaderboard</a>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>

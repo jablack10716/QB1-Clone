@@ -1,0 +1,82 @@
+<div class="leaderboard">
+  <div class="page-header">
+    <div>
+      <h1><%= game.name %></h1>
+      <h2>Leaderboard</h2>
+    </div>
+    <div class="header-actions">
+      <% if (user.role === 'player') { %>
+        <a href="/games/<%= game.id %>/play" class="btn btn-primary">Back to Game</a>
+      <% } else { %>
+        <a href="/admin/games/<%= game.id %>" class="btn btn-primary">Back to Console</a>
+      <% } %>
+    </div>
+  </div>
+  
+  <div class="card">
+    <% if (leaderboard.length === 0) { %>
+      <p class="empty-state">No predictions made yet. Be the first to play!</p>
+    <% } else { %>
+      <div class="leaderboard-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Player</th>
+              <th>Total Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% leaderboard.forEach((entry, index) => { %>
+              <tr class="<%= entry.user_id === user.id ? 'current-user' : '' %>">
+                <td class="rank">
+                  <% if (index === 0) { %>
+                    🥇
+                  <% } else if (index === 1) { %>
+                    🥈
+                  <% } else if (index === 2) { %>
+                    🥉
+                  <% } else { %>
+                    <%= index + 1 %>
+                  <% } %>
+                </td>
+                <td class="player-name">
+                  <%= entry.user_name %>
+                  <% if (entry.user_id === user.id) { %>
+                    <span class="you-badge">YOU</span>
+                  <% } %>
+                </td>
+                <td class="points"><%= entry.total_points %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+  
+  <div class="card">
+    <h3>Game Stats</h3>
+    <div class="stats-grid">
+      <div class="stat">
+        <span class="stat-label">Total Plays</span>
+        <span class="stat-value"><%= allPlays.length %></span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Players</span>
+        <span class="stat-value"><%= leaderboard.length %></span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Game Status</span>
+        <span class="badge badge-<%= game.status %>"><%= game.status %></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Auto-refresh leaderboard every 10 seconds
+  setTimeout(() => {
+    window.location.reload();
+  }, 10000);
+</script>

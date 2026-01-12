@@ -1,0 +1,35 @@
+{
+  "name": "qb1-clone",
+  "version": "1.0.0",
+  "description": "Home QB1 Clone - Play-by-Play Prediction Game",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "migrate": "node dist/database/migrate.js",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": ["football", "prediction", "game"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "better-sqlite3": "12.6.0",
+    "ejs": "^3.1.9",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/express-session": "^1.17.10",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.10.6",
+    "@types/jest": "^29.5.11",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1"
+  }
+}
