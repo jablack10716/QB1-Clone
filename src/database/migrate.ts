@@ -54,6 +54,7 @@ export function runMigrations(): void {
       play_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
       predicted_outcome TEXT NOT NULL,
+      game_breaker INTEGER NOT NULL DEFAULT 0,
       points_awarded INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (play_id) REFERENCES plays(id) ON DELETE CASCADE,
@@ -61,6 +62,13 @@ export function runMigrations(): void {
       UNIQUE(play_id, user_id)
     )
   `);
+  
+  // Add game_breaker column to existing predictions table if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE predictions ADD COLUMN game_breaker INTEGER NOT NULL DEFAULT 0`);
+  } catch (error) {
+    // Column may already exist, ignore error
+  }
   
   // Create indexes for better query performance
   db.exec(`

@@ -31,14 +31,6 @@
           <span class="label">Down:</span>
           <span class="value"><%= currentPlay.down %></span>
         </div>
-        <div class="play-detail">
-          <span class="label">Distance:</span>
-          <span class="value"><%= currentPlay.distance %> yards</span>
-        </div>
-        <div class="play-detail">
-          <span class="label">Yard Line:</span>
-          <span class="value"><%= currentPlay.yard_line %></span>
-        </div>
       </div>
       
       <% if (currentPlay.status === PlayStatus.OPEN) { %>
@@ -48,15 +40,34 @@
             <div class="prediction-locked">
               <p class="current-prediction">
                 Your prediction submitted: <strong><%= userPrediction.predicted_outcome %></strong>
+                <% if (userPrediction.game_breaker) { %>
+                  <span class="game-breaker-badge">⚡ GAME BREAKER</span>
+                <% } %>
               </p>
               <p class="locked-message">You have locked in your prediction. Waiting for the play result...</p>
             </div>
           <% } else { %>
           <form method="POST" action="/games/<%= game.id %>/plays/<%= currentPlay.id %>/predict" class="prediction-form">
-            <h4>Select Play Type</h4>
-            <div class="button-group prediction-buttons">
-              <button type="button" class="btn btn-prediction-type" data-type="run">RUN</button>
-              <button type="button" class="btn btn-prediction-type" data-type="pass">PASS</button>
+            <div class="top-buttons">
+              <div>
+                <h4>Select Play Type</h4>
+                <div class="button-group prediction-buttons">
+                  <button type="button" class="btn btn-prediction-type" data-type="run">RUN</button>
+                  <button type="button" class="btn btn-prediction-type" data-type="pass">PASS</button>
+                </div>
+              </div>
+              
+              <div class="game-breaker-container">
+                <h4>Power-Up</h4>
+                <button type="button" class="btn btn-game-breaker" id="game-breaker-btn" <%= !gameBreakerAvailable ? 'disabled' : '' %>>
+                  ⚡ GAME BREAKER
+                </button>
+                <% if (!gameBreakerAvailable) { %>
+                  <p class="game-breaker-status">Used this drive</p>
+                <% } else { %>
+                  <p class="game-breaker-status">Available</p>
+                <% } %>
+              </div>
             </div>
 
             <!-- Run Direction Buttons -->
@@ -85,157 +96,51 @@
 
             <!-- Hidden input for the prediction value -->
             <input type="hidden" name="predicted_outcome" id="predicted_outcome" required>
-
-            <button type="submit" class="btn btn-primary btn-large" style="margin-top: 20px;">Submit Prediction</button>
+            
+            <!-- Hidden input for game breaker -->
+            <input type="hidden" name="game_breaker" id="game_breaker_input" value="">
+            
+            <!-- Prediction Status -->
+            <div id="prediction-status" class="prediction-status" style="margin-top: 20px;">
+              <span class="status-icon">💡</span>
+              <span class="status-text">Make your selection - it will be saved automatically</span>
+            </div>
           </form>
           <% } %>
-
-          <script>
-            document.addEventListener('DOMContentLoaded', function() {
-              const typeButtons = document.querySelectorAll('.btn-prediction-type');
-              const runPrediction = document.getElementById('run-prediction');
-              const passPrediction = document.getElementById('pass-prediction');
-              const predictionInput = document.getElementById('predicted_outcome');
-              let selectedType = null;
-              let selectedPassDepth = null;
-              let selectedPassDir = null;
-
-              // Handle play type selection (toggle on click)
-              typeButtons.forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  const type = this.dataset.type;
-                  
-                  // If clicking the same button, toggle it off
-                  if (selectedType === type) {
-                    selectedType = null;
-                    typeButtons.forEach(b => b.classList.remove('active'));
-                    runPrediction.style.display = 'none';
-                    passPrediction.style.display = 'none';
-                    predictionInput.value = '';
-                    selectedPassDepth = null;
-                    selectedPassDir = null;
-                    // Clear all direction button states
-                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.btn-pass-option').forEach(b => b.classList.remove('active'));
-                  } else {
-                    // Select new type
-                    selectedType = type;
-                    typeButtons.forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    
-                    // Show/hide appropriate sections
-                    runPrediction.style.display = type === 'run' ? 'block' : 'none';
-                    passPrediction.style.display = type === 'pass' ? 'block' : 'none';
-                    
-                    // Clear the prediction input
-                    predictionInput.value = '';
-                    selectedPassDepth = null;
-                    selectedPassDir = null;
-                    
-                    // Clear previous selections
-                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.btn-pass-option').forEach(b => b.classList.remove('active'));
-                  }
-                });
-              });
-
-              // Handle run direction selection
-              let selectedRunDir = null;
-              document.querySelectorAll('.btn-run-direction').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  const dir = this.dataset.value;
-                  
-                  // If clicking the same button, toggle it off
-                  if (selectedRunDir === dir) {
-                    selectedRunDir = null;
-                    predictionInput.value = '';
-                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
-                  } else {
-                    selectedRunDir = dir;
-                    predictionInput.value = dir;
-                    document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                  }
-                });
-              });
-
-              // Handle pass depth selection
-              document.querySelectorAll('.btn-pass-depth').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  const depth = this.dataset.depth;
-                  
-                  // If clicking the same button, toggle it off
-                  if (selectedPassDepth === depth) {
-                    selectedPassDepth = null;
-                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
-                  } else {
-                    selectedPassDepth = depth;
-                    document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                  }
-                  
-                  updatePassPrediction();
-                });
-              });
-
-              // Handle pass direction selection
-              document.querySelectorAll('.btn-pass-direction').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  const dir = this.dataset.dir;
-                  
-                  // If clicking the same button, toggle it off
-                  if (selectedPassDir === dir) {
-                    selectedPassDir = null;
-                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
-                  } else {
-                    selectedPassDir = dir;
-                    document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                  }
-                  
-                  updatePassPrediction();
-                });
-              });
-
-
-              function updatePassPrediction() {
-                // Build pass prediction from selected depth and/or direction
-                let passParts = ['PASS'];
-                
-                if (selectedPassDepth) {
-                  passParts.push(selectedPassDepth);
-                }
-                
-                if (selectedPassDir) {
-                  passParts.push(selectedPassDir);
-                }
-                
-                // User must select at least depth or direction
-                if (passParts.length > 1) {
-                  predictionInput.value = passParts.join('_');
-                } else {
-                  predictionInput.value = '';
-                }
-              }
-
-              document.querySelector('.prediction-form').addEventListener('submit', function(e) {
-                if (!predictionInput.value) {
-                  e.preventDefault();
-                  alert('Please select a complete prediction');
-                }
-              });
-            });
-          </script>
-
-          <style>
+        </div>
+        
+        <style>
+          .top-buttons {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+          }
+          
+          .top-buttons > div:first-child {
+            flex: 1;
+          }
+          
+          .game-breaker-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 200px;
+          }
+          
+          .game-breaker-container h4 {
+            margin-bottom: 10px;
+            text-align: center;
+          }
+          
+          .game-breaker-status {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            text-align: center;
+          }
+            
             .button-group {
               display: flex;
               flex-wrap: wrap;
@@ -259,6 +164,18 @@
               cursor: pointer;
               transition: all 0.2s;
             }
+            
+            .btn-prediction-type:disabled,
+            .btn-run-direction:disabled,
+            .btn-pass-depth:disabled,
+            .btn-pass-direction:disabled,
+            .btn-pass-option:disabled {
+              background-color: #ddd;
+              border-color: #999;
+              color: #999;
+              cursor: not-allowed;
+              opacity: 0.6;
+            }
 
             .btn-prediction-type:hover,
             .btn-run-direction:hover,
@@ -278,33 +195,468 @@
               background-color: #007bff;
               color: white;
             }
-
-            .prediction-locked {
-              padding: 15px;
-              background-color: #e8f5e9;
-              border-left: 4px solid #4caf50;
-              border-radius: 4px;
-              margin-bottom: 20px;
-            }
-
-            .current-prediction {
-              margin: 10px 0;
+            
+            .btn-game-breaker {
+              padding: 12px 20px;
               font-size: 16px;
+              font-weight: bold;
+              border: 3px solid #ffd700;
+              border-radius: 8px;
+              background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+              color: #000;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              min-width: 180px;
+              position: relative;
+              overflow: hidden;
             }
-
-            .locked-message {
+            
+            .btn-game-breaker::before {
+              content: '';
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 0;
+              height: 0;
+              border-radius: 50%;
+              background: rgba(255, 255, 255, 0.5);
+              transform: translate(-50%, -50%);
+              transition: width 0.6s, height 0.6s;
+            }
+            
+            .btn-game-breaker:hover:not(:disabled) {
+              border-color: #ffed4e;
+              box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+              transform: scale(1.05);
+            }
+            
+            .btn-game-breaker.active {
+              background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+              border-color: #00ff00;
+              color: #fff;
+              text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+              animation: pulseGlow 1.5s ease-in-out infinite;
+              transform: scale(1.1);
+              box-shadow: 0 0 30px rgba(0, 255, 0, 0.8), 0 0 60px rgba(0, 255, 0, 0.4);
+            }
+            
+            .btn-game-breaker.active::before {
+              width: 300px;
+              height: 300px;
+            }
+            
+            @keyframes pulseGlow {
+              0%, 100% { 
+                box-shadow: 0 0 20px rgba(0, 255, 0, 0.6), 0 0 40px rgba(0, 255, 0, 0.4);
+                transform: scale(1.1);
+              }
+              50% { 
+                box-shadow: 0 0 40px rgba(0, 255, 0, 0.9), 0 0 80px rgba(0, 255, 0, 0.6);
+                transform: scale(1.15);
+              }
+            }
+            
+            .btn-game-breaker:disabled {
+              background: #ccc;
+              border-color: #999;
+              color: #666;
+              cursor: not-allowed;
+              opacity: 0.6;
+              box-shadow: none;
+              transform: none;
+            }
+            
+            .game-breaker-status {
+              margin-top: 8px;
+              font-size: 13px;
+              font-weight: 600;
+              text-align: center;
+              transition: all 0.3s;
+            }
+            
+            .btn-game-breaker.active ~ .game-breaker-status {
+              color: #00cc00;
+              font-weight: bold;
+              text-transform: uppercase;
+            }
+            
+            .prediction-status {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              padding: 15px;
+              border-radius: 8px;
+              background: #f8f9fa;
+              border: 2px solid #dee2e6;
+              transition: all 0.3s;
+            }
+            
+            .prediction-status .status-icon {
+              font-size: 24px;
+            }
+            
+            .prediction-status .status-text {
+              font-size: 14px;
+              font-weight: 600;
+              color: #666;
+            }
+            
+            .prediction-status.saving {
+              background: #fff3cd;
+              border-color: #ffc107;
+            }
+            
+            .prediction-status.saving .status-text {
+              color: #856404;
+            }
+            
+            .prediction-status.saved {
+              background: #d4edda;
+              border-color: #28a745;
+              animation: successPulse 0.5s ease;
+            }
+            
+            .prediction-status.saved .status-text {
+              color: #155724;
+            }
+            
+            .prediction-status.error {
+              background: #f8d7da;
+              border-color: #dc3545;
+            }
+            
+            .prediction-status.error .status-text {
+              color: #721c24;
+            }
+            
+            @keyframes successPulse {
+              0% { transform: scale(1); }
+              50% { transform: scale(1.02); }
+              100% { transform: scale(1); }
+            }
+              display: inline-block;
+              background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+              color: #000;
+              padding: 4px 10px;
+              border-radius: 4px;
+              font-size: 12px;
+              font-weight: bold;
+              margin-left: 10px;
+              animation: glow 2s ease-in-out infinite;
+            }
+            
+            @keyframes glow {
+              0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+              50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+            }
+            
+            .game-breaker-section {
+              padding: 15px;
+              background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 140, 0, 0.1) 100%);
+              border: 2px solid #ffd700;
+              border-radius: 8px;
+            }
+            
+            .game-breaker-label {
+              display: flex;
+              align-items: center;
+              cursor: pointer;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            
+            .game-breaker-label input[type="checkbox"] {
+              width: 20px;
+              height: 20px;
+              margin-right: 10px;
+              cursor: pointer;
+            }
+            
+            .game-breaker-label input[type="checkbox"]:disabled {
+              cursor: not-allowed;
+              opacity: 0.5;
+            }
+            
+            .game-breaker-text {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            
+            .game-breaker-info {
+              font-size: 12px;
+              font-weight: normal;
               color: #666;
               font-style: italic;
-              margin-top: 10px;
+            }
+            
+            .game-breaker-used {
+              font-size: 12px;
+              font-weight: normal;
+              color: #999;
+              font-style: italic;
             }
           </style>
         </div>
+        
+        <script>
+          // Prediction form JavaScript - only runs when elements exist
+          document.addEventListener('DOMContentLoaded', function() {
+            const typeButtons = document.querySelectorAll('.btn-prediction-type');
+            const runPrediction = document.getElementById('run-prediction');
+            const passPrediction = document.getElementById('pass-prediction');
+            const predictionInput = document.getElementById('predicted_outcome');
+            const gameBreakerBtn = document.getElementById('game-breaker-btn');
+            const gameBreakerInput = document.getElementById('game_breaker_input');
+            
+            let selectedType = null;
+            let selectedPassDepth = null;
+            let selectedPassDir = null;
+            let gameBreakerActive = false;
+
+            // Handle Game Breaker button toggle - only if button exists
+            if (gameBreakerBtn && !gameBreakerBtn.disabled) {
+              gameBreakerBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                gameBreakerActive = !gameBreakerActive;
+                
+                if (gameBreakerActive) {
+                  this.classList.add('active');
+                  this.textContent = '⚡ ACTIVATED ⚡';
+                  gameBreakerInput.value = 'on';
+                  
+                  // Update status text
+                  const statusText = this.parentElement.querySelector('.game-breaker-status');
+                  if (statusText) {
+                    statusText.textContent = 'ACTIVATED!';
+                    statusText.style.color = '#00cc00';
+                  }
+                } else {
+                  this.classList.remove('active');
+                  this.textContent = '⚡ GAME BREAKER';
+                  gameBreakerInput.value = '';
+                  
+                  // Reset status text
+                  const statusText = this.parentElement.querySelector('.game-breaker-status');
+                  if (statusText) {
+                    statusText.textContent = 'Available';
+                    statusText.style.color = '#666';
+                  }
+                }
+                // Game Breaker just toggles the flag - it will be saved with the prediction
+              });
+            }
+            
+            // Auto-save prediction function
+            function autoSavePrediction() {
+              const prediction = predictionInput.value;
+              const gameBreaker = gameBreakerInput.value;
+              const statusDiv = document.getElementById('prediction-status');
+              const statusIcon = statusDiv.querySelector('.status-icon');
+              const statusText = statusDiv.querySelector('.status-text');
+              
+              if (!prediction) {
+                statusIcon.textContent = '💡';
+                statusText.textContent = 'Make your selection - it will be saved automatically';
+                statusDiv.className = 'prediction-status';
+                return;
+              }
+              
+              // Show saving status
+              statusIcon.textContent = '⏳';
+              statusText.textContent = 'Saving...';
+              statusDiv.className = 'prediction-status saving';
+              
+              // Disable all buttons while saving
+              typeButtons.forEach(btn => btn.disabled = true);
+              document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = true);
+              document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = true);
+              document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = true);
+              if (gameBreakerBtn) gameBreakerBtn.disabled = true;
+              
+              // Submit via fetch
+              const formData = new FormData();
+              formData.append('predicted_outcome', prediction);
+              if (gameBreaker) {
+                formData.append('game_breaker', gameBreaker);
+              }
+              
+              fetch('/games/<%= game.id %>/plays/<%= currentPlay.id %>/predict', {
+                method: 'POST',
+                body: formData
+              })
+              .then(response => {
+                if (response.ok) {
+                  statusIcon.textContent = '✓';
+                  statusText.textContent = 'Prediction saved: ' + prediction + (gameBreaker ? ' ⚡' : '');
+                  statusDiv.className = 'prediction-status saved';
+                } else {
+                  statusIcon.textContent = '⚠️';
+                  statusText.textContent = 'Error saving prediction';
+                  statusDiv.className = 'prediction-status error';
+                  
+                  // Re-enable buttons on error
+                  typeButtons.forEach(btn => btn.disabled = false);
+                  document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
+                  document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
+                  document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
+                  if (gameBreakerBtn) gameBreakerBtn.disabled = false;
+                }
+              })
+              .catch(error => {
+                statusIcon.textContent = '⚠️';
+                statusText.textContent = 'Error saving prediction';
+                statusDiv.className = 'prediction-status error';
+                
+                // Re-enable buttons on error
+                typeButtons.forEach(btn => btn.disabled = false);
+                document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
+                document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
+                document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
+                if (gameBreakerBtn) gameBreakerBtn.disabled = false;
+              });
+            }
+
+            // Handle play type selection (toggle on click)
+            typeButtons.forEach(btn => {
+              btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const type = this.dataset.type;
+                
+                // If clicking the same button, toggle it off
+                if (selectedType === type) {
+                  selectedType = null;
+                  typeButtons.forEach(b => b.classList.remove('active'));
+                  runPrediction.style.display = 'none';
+                  passPrediction.style.display = 'none';
+                  predictionInput.value = '';
+                  selectedPassDepth = null;
+                  selectedPassDir = null;
+                  // Clear all direction button states
+                  document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-option').forEach(b => b.classList.remove('active'));
+                } else {
+                  // Select new type
+                  selectedType = type;
+                  typeButtons.forEach(b => b.classList.remove('active'));
+                  this.classList.add('active');
+                  
+                  // Show/hide appropriate sections
+                  runPrediction.style.display = type === 'run' ? 'block' : 'none';
+                  passPrediction.style.display = type === 'pass' ? 'block' : 'none';
+                  
+                  // Clear the prediction input
+                  predictionInput.value = '';
+                  selectedPassDepth = null;
+                  selectedPassDir = null;
+                  
+                  // Clear previous selections
+                  document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                  document.querySelectorAll('.btn-pass-option').forEach(b => b.classList.remove('active'));
+                }
+              });
+            });
+
+            // Handle run direction selection
+            let selectedRunDir = null;
+            document.querySelectorAll('.btn-run-direction').forEach(btn => {
+              btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const dir = this.dataset.value;
+                
+                // If clicking the same button, toggle it off
+                if (selectedRunDir === dir) {
+                  selectedRunDir = null;
+                  predictionInput.value = '';
+                  document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                } else {
+                  selectedRunDir = dir;
+                  predictionInput.value = dir;
+                  document.querySelectorAll('.btn-run-direction').forEach(b => b.classList.remove('active'));
+                  this.classList.add('active');
+                  autoSavePrediction();
+                }
+              });
+            });
+
+            // Handle pass depth selection
+            document.querySelectorAll('.btn-pass-depth').forEach(btn => {
+              btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const depth = this.dataset.depth;
+                
+                // If clicking the same button, toggle it off
+                if (selectedPassDepth === depth) {
+                  selectedPassDepth = null;
+                  document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                } else {
+                  selectedPassDepth = depth;
+                  document.querySelectorAll('.btn-pass-depth').forEach(b => b.classList.remove('active'));
+                  this.classList.add('active');
+                }
+                
+                updatePassPrediction();
+              });
+            });
+
+            // Handle pass direction selection
+            document.querySelectorAll('.btn-pass-direction').forEach(btn => {
+              btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const dir = this.dataset.dir;
+                
+                // If clicking the same button, toggle it off
+                if (selectedPassDir === dir) {
+                  selectedPassDir = null;
+                  document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                } else {
+                  selectedPassDir = dir;
+                  document.querySelectorAll('.btn-pass-direction').forEach(b => b.classList.remove('active'));
+                  this.classList.add('active');
+                }
+                
+                updatePassPrediction();
+              });
+            });
+
+            function updatePassPrediction() {
+              // Build pass prediction from selected depth and/or direction
+              let passParts = ['PASS'];
+              
+              if (selectedPassDepth) {
+                passParts.push(selectedPassDepth);
+              }
+              
+              if (selectedPassDir) {
+                passParts.push(selectedPassDir);
+              }
+              
+              // User must select at least depth or direction
+              if (passParts.length > 1) {
+                predictionInput.value = passParts.join('_');
+                autoSavePrediction();
+              } else {
+                predictionInput.value = '';
+              }
+            }
+          });
+        </script>
+        
       <% } else if (currentPlay.status === PlayStatus.LOCKED) { %>
         <div class="play-locked">
           <h3>🔒 Predictions Locked</h3>
           <p>The play is about to start! Wait for the result...</p>
           <% if (userPrediction) { %>
-            <p class="your-prediction">Your prediction: <strong><%= userPrediction.predicted_outcome %></strong></p>
+            <p class="your-prediction">
+              Your prediction: <strong><%= userPrediction.predicted_outcome %></strong>
+              <% if (userPrediction.game_breaker) { %>
+                <span class="game-breaker-badge">⚡ GAME BREAKER</span>
+              <% } %>
+            </p>
           <% } else { %>
             <p class="no-prediction">You didn't make a prediction for this play.</p>
           <% } %>
@@ -320,7 +672,12 @@
           
           <% if (userPrediction) { %>
             <div class="result-comparison">
-              <p><strong>Your Prediction:</strong> <%= userPrediction.predicted_outcome %></p>
+              <p>
+                <strong>Your Prediction:</strong> <%= userPrediction.predicted_outcome %>
+                <% if (userPrediction.game_breaker) { %>
+                  <span class="game-breaker-badge">⚡ GAME BREAKER</span>
+                <% } %>
+              </p>
               <p class="points-earned <%= userPrediction.points_awarded > 0 ? 'success' : 'neutral' %>">
                 <strong>Points Earned:</strong> <%= userPrediction.points_awarded %>
               </p>
@@ -349,17 +706,283 @@
         <li><strong>40 points</strong> - Correct category (run vs pass)</li>
         <li><strong>0 points</strong> - Incorrect prediction</li>
       </ul>
+      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+        <h4 style="margin-bottom: 10px;">⚡ Game Breaker</h4>
+        <p style="font-size: 14px; color: #666;">
+          Use Game Breaker once per drive (resets at 1st down) to multiply your points for that play. 
+          Points will be updated once scoring is implemented.
+        </p>
+      </div>
     </div>
   <% } %>
 </div>
 
+<!-- Score Result Modal -->
+<div id="scoreModal" class="score-modal" style="display: none;">
+  <div class="score-modal-content">
+    <div class="score-modal-header">
+      <h2>Play Results!</h2>
+    </div>
+    <div class="score-modal-body" id="scoreModalBody">
+      <!-- Content will be populated by JavaScript -->
+    </div>
+    <div class="score-modal-footer">
+      <button class="btn btn-primary" onclick="closeScoreModal()">Continue</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .score-modal {
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7);
+    animation: fadeIn 0.3s ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .score-modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    animation: slideDown 0.4s ease;
+  }
+  
+  @keyframes slideDown {
+    from {
+      transform: translateY(-50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  .score-modal-header {
+    padding: 25px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    text-align: center;
+  }
+  
+  .score-modal-header h2 {
+    margin: 0;
+    font-size: 28px;
+  }
+  
+  .score-modal-body {
+    padding: 30px;
+    text-align: center;
+  }
+  
+  .score-result-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: bounceIn 0.6s ease;
+  }
+  
+  @keyframes bounceIn {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  .score-result-title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+  }
+  
+  .score-result-points {
+    font-size: 48px;
+    font-weight: bold;
+    margin: 20px 0;
+    animation: scaleIn 0.5s ease 0.2s backwards;
+  }
+  
+  @keyframes scaleIn {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+  }
+  
+  .score-result-points.perfect {
+    color: #28a745;
+    text-shadow: 0 0 20px rgba(40, 167, 69, 0.5);
+  }
+  
+  .score-result-points.partial {
+    color: #ffc107;
+    text-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+  }
+  
+  .score-result-points.zero {
+    color: #6c757d;
+  }
+  
+  .score-result-details {
+    font-size: 16px;
+    color: #666;
+    margin: 15px 0;
+    line-height: 1.6;
+  }
+  
+  .score-result-details strong {
+    color: #333;
+  }
+  
+  .score-game-breaker-used {
+    display: inline-block;
+    background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    margin: 15px 0;
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+  
+  .score-modal-footer {
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid #eee;
+  }
+  
+  .score-modal-footer .btn {
+    padding: 12px 40px;
+    font-size: 16px;
+    font-weight: bold;
+  }
+</style>
+
 <script>
-  // Auto-refresh every 5 seconds to check for play updates
-  // But don't refresh if user is actively making a prediction
+  // Close score modal
+  function closeScoreModal() {
+    document.getElementById('scoreModal').style.display = 'none';
+    // Mark this play as seen
+    <% if (currentPlay) { %>
+      sessionStorage.setItem('play_<%= currentPlay.id %>_seen', 'true');
+    <% } %>
+  }
+  
+  // Show score modal if play is scored and not yet seen
+  <% if (currentPlay && currentPlay.status === PlayStatus.SCORED && userPrediction) { %>
+    const playId = <%= currentPlay.id %>;
+    const alreadySeen = sessionStorage.getItem('play_' + playId + '_seen');
+    
+    if (!alreadySeen) {
+      const modal = document.getElementById('scoreModal');
+      const modalBody = document.getElementById('scoreModalBody');
+      const points = <%= userPrediction.points_awarded || 0 %>;
+      const prediction = '<%= userPrediction.predicted_outcome %>';
+      const actualOutcome = '<%= currentPlay.actual_outcome %>';
+      const usedGameBreaker = <%= userPrediction.game_breaker ? 'true' : 'false' %>;
+      
+      console.log('Displaying score modal for play', playId, '- points:', points, 'prediction:', prediction);
+      
+      let icon = '';
+      let title = '';
+      let pointsClass = '';
+      
+      if (points === 100) {
+        icon = '🎉';
+        title = 'PERFECT PREDICTION!';
+        pointsClass = 'perfect';
+      } else if (points === 40) {
+        icon = '👍';
+        title = 'Nice Guess!';
+        pointsClass = 'partial';
+      } else {
+        icon = '😐';
+        title = 'Better Luck Next Time';
+        pointsClass = 'zero';
+      }
+      
+      let gameBreakerHTML = '';
+      if (usedGameBreaker) {
+        gameBreakerHTML = '<div class="score-game-breaker-used">⚡ GAME BREAKER USED ⚡</div>';
+      }
+      
+      modalBody.innerHTML = `
+        <div class="score-result-icon">${icon}</div>
+        <div class="score-result-title">${title}</div>
+        ${gameBreakerHTML}
+        <div class="score-result-points ${pointsClass}">+${points} Points</div>
+        <div class="score-result-details">
+          <strong>Your Prediction:</strong> ${prediction}<br>
+          <strong>Actual Outcome:</strong> ${actualOutcome}
+        </div>
+      `;
+      
+      // Mark as seen
+      sessionStorage.setItem('play_' + playId + '_seen', 'true');
+      
+      // Show modal after a brief delay
+      setTimeout(() => {
+        modal.style.display = 'block';
+      }, 500);
+    }
+  <% } %>
+  
+  // Clear seen flag for old plays and track current play
+  <% if (currentPlay) { %>
+    // Store current play ID to detect when a new play starts
+    const currentPlayIdNow = <%= currentPlay.id %>;
+    const lastPlayId = sessionStorage.getItem('lastPlayId');
+    
+    if (lastPlayId && lastPlayId !== currentPlayIdNow.toString()) {
+      // New play started, clear old play's seen flag
+      sessionStorage.removeItem('play_' + lastPlayId + '_seen');
+    }
+    
+    // Update last play ID
+    sessionStorage.setItem('lastPlayId', currentPlayIdNow.toString());
+  <% } %>
+  
+  // Auto-refresh to check for play updates
   const currentPlayStatus = '<%= currentPlay?.status %>';
-  if (currentPlayStatus !== 'open') {
+  const hasPrediction = <%= userPrediction ? 'true' : 'false' %>;
+  
+  // Determine refresh behavior based on play status
+  let shouldRefresh = false;
+  let refreshInterval = 5000; // Default 5 seconds
+  
+  if (!currentPlayStatus) {
+    // No play yet - waiting for first play
+    shouldRefresh = true;
+    refreshInterval = 3000;
+  } else if (currentPlayStatus === 'open' && hasPrediction) {
+    // Play open but prediction submitted - wait for result
+    shouldRefresh = true;
+    refreshInterval = 2000;
+  } else if (currentPlayStatus === 'locked') {
+    // Play locked - wait for scoring
+    shouldRefresh = true;
+    refreshInterval = 2000;
+  } else if (currentPlayStatus === 'scored') {
+    // Play scored - refresh to show result, then stop
+    shouldRefresh = true;
+    refreshInterval = 2000;
+  }
+  
+  if (shouldRefresh) {
     setTimeout(() => {
       window.location.reload();
-    }, 5000);
+    }, refreshInterval);
   }
 </script>

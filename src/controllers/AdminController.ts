@@ -126,13 +126,67 @@ export class AdminController {
     const { actual_outcome } = req.body;
     
     if (!actual_outcome || !Object.values(PlayOutcome).includes(actual_outcome)) {
+      console.error('Invalid outcome:', actual_outcome, 'Valid outcomes:', Object.values(PlayOutcome));
       return res.redirect(`/admin/games/${gameId}?error=Invalid outcome selected`);
     }
     
-    // Set actual outcome
+    console.log(`Scoring play ${playId} with outcome: ${actual_outcome}`);
+    
+    try {
+      // Set actual outcome and mark as SCORED
+      const scoreSuccess = PlayModel.setActualOutcome(playId, actual_outcome as PlayOutcome);
+      if (!scoreSuccess) {
+        console.error(`Failed to update play ${playId} - play may not exist`);
+        return res.redirect(`/admin/games/${gameId}?error=Failed to score play`);
+      }
+      
+      // Verify the update worked
+      const updatedPlay = PlayModel.findById(playId);
+      console.log(`Play ${playId} updated to status: ${updatedPlay?.status}, outcome: ${updatedPlay?.actual_outcome}`);
+      
+      // Score all predictions for this play
+      const predictions = PredictionModel.findByPlayId(playId);
+      console.log(`Found ${predictions.length} predictions for play ${playId}`);
+      
+      predictions.forEach(prediction => {
+        const score = calculateScore(prediction.predicted_outcome, actual_outcome as PlayOutcome);
+        PredictionModel.updatePoints(prediction.id, score);
+        console.log(`Updated prediction ${prediction.id}: score = ${score}`);
+      });
+      
+      res.redirect(`/admin/games/${gameId}`);
+    } catch (error) {
+      console.error('Error scoring play:', error);
+      res.redirect(`/admin/games/${gameId}?error=Error scoring play`);
+    }
+  }
+  
+  /**
+   * Edit a scored play's outcome and recalculate scores
+   */
+  static editPlay(req: Request, res: Response): void {
+    const gameId = parseInt(req.params.id);
+    const playId = parseInt(req.params.playId);
+    const { actual_outcome } = req.body;
+    
+    if (!actual_outcome || !Object.values(PlayOutcome).includes(actual_outcome)) {
+      return res.redirect(`/admin/games/${gameId}?error=Invalid outcome selected`);
+    }
+    
+    const play = PlayModel.findById(playId);
+    if (!play) {
+      return res.redirect(`/admin/games/${gameId}?error=Play not found`);
+    }
+    
+    // Only allow editing scored plays
+    if (play.status !== PlayStatus.SCORED) {
+      return res.redirect(`/admin/games/${gameId}?error=Can only edit scored plays`);
+    }
+    
+    // Update the actual outcome
     PlayModel.setActualOutcome(playId, actual_outcome as PlayOutcome);
     
-    // Score all predictions for this play
+    // Recalculate scores for all predictions on this play
     const predictions = PredictionModel.findByPlayId(playId);
     predictions.forEach(prediction => {
       const score = calculateScore(prediction.predicted_outcome, actual_outcome as PlayOutcome);

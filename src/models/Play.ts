@@ -41,22 +41,22 @@ export class PlayModel {
    */
   static findByGameId(gameId: number): Play[] {
     const db = getDb();
-    const stmt = db.prepare('SELECT * FROM plays WHERE game_id = ? ORDER BY sequence_number ASC');
+    const stmt = db.prepare('SELECT * FROM plays WHERE game_id = ? ORDER BY sequence_number DESC');
     return stmt.all(gameId) as Play[];
   }
   
   /**
-   * Get current play for a game (the latest play that is not scored)
+   * Get current play for a game (the latest play, including recently scored)
    */
   static getCurrentPlay(gameId: number): Play | undefined {
     const db = getDb();
     const stmt = db.prepare(`
       SELECT * FROM plays 
-      WHERE game_id = ? AND status != ?
+      WHERE game_id = ?
       ORDER BY sequence_number DESC 
       LIMIT 1
     `);
-    return stmt.get(gameId, PlayStatus.SCORED) as Play | undefined;
+    return stmt.get(gameId) as Play | undefined;
   }
   
   /**
@@ -85,13 +85,17 @@ export class PlayModel {
   /**
    * Set actual outcome and mark as scored
    */
-  static setActualOutcome(id: number, outcome: PlayOutcome): void {
+  /**
+   * Set actual outcome and mark play as SCORED
+   */
+  static setActualOutcome(id: number, outcome: PlayOutcome): boolean {
     const db = getDb();
     const stmt = db.prepare(`
       UPDATE plays 
       SET actual_outcome = ?, status = ? 
       WHERE id = ?
     `);
-    stmt.run(outcome, PlayStatus.SCORED, id);
+    const result = stmt.run(outcome, PlayStatus.SCORED, id);
+    return result.changes > 0;
   }
 }

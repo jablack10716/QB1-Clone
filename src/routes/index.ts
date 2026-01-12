@@ -18,6 +18,7 @@ router.get('/admin/games/:id', requireAuth, requireAdmin, AdminController.showGa
 router.post('/admin/games/:id/plays', requireAuth, requireAdmin, AdminController.createPlay);
 router.post('/admin/games/:id/plays/:playId/lock', requireAuth, requireAdmin, AdminController.lockPlay);
 router.post('/admin/games/:id/plays/:playId/score', requireAuth, requireAdmin, AdminController.scorePlay);
+router.post('/admin/games/:id/plays/:playId/edit', requireAuth, requireAdmin, AdminController.editPlay);
 router.post('/admin/games/:id/status', requireAuth, requireAdmin, AdminController.updateGameStatus);
 
 // Player routes

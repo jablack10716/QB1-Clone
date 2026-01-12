@@ -297,6 +297,7 @@
               <th>Down</th>
               <th>Status</th>
               <th>Outcome</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -308,6 +309,13 @@
 
                 <td><span class="badge badge-<%= play.status %>"><%= play.status %></span></td>
                 <td><%= play.actual_outcome || '-' %></td>
+                <td>
+                  <% if (play.status === PlayStatus.SCORED) { %>
+                    <button class="btn btn-small btn-secondary" onclick="openEditModal(<%= play.id %>, '<%= play.actual_outcome %>', <%= play.sequence_number %>)">✏️ Edit</button>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
               </tr>
             <% }) %>
           </tbody>
@@ -316,3 +324,282 @@
     </div>
   <% } %>
 </div>
+
+<!-- Edit Play Modal -->
+<div id="editPlayModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Edit Play #<span id="editPlayNumber"></span></h2>
+      <button class="modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form method="POST" id="editPlayForm" class="score-form">
+        <h3>Select New Outcome</h3>
+        
+        <!-- Step 1: Outcome Type Buttons -->
+        <div class="button-group outcome-buttons">
+          <button type="button" class="btn btn-outcome" data-outcome="run">RUN</button>
+          <button type="button" class="btn btn-outcome" data-outcome="pass">PASS</button>
+        </div>
+
+        <!-- Step 2: Direction Buttons (Run) -->
+        <div id="edit-run-directions" class="button-group" style="display: none;">
+          <button type="button" class="btn btn-direction" data-value="RUN_LEFT">LEFT</button>
+          <button type="button" class="btn btn-direction" data-value="RUN_CENTER">CENTER</button>
+          <button type="button" class="btn btn-direction" data-value="RUN_RIGHT">RIGHT</button>
+        </div>
+
+        <!-- Step 2: Pass Type Buttons -->
+        <div id="edit-pass-types" class="button-group" style="display: none;">
+          <h4 style="width: 100%; margin-bottom: 10px;">Select Depth</h4>
+          <button type="button" class="btn btn-pass-depth" data-depth="BACK">BACK</button>
+          <button type="button" class="btn btn-pass-depth" data-depth="SHORT">SHORT</button>
+          <button type="button" class="btn btn-pass-depth" data-depth="LONG">LONG</button>
+        </div>
+
+        <div id="edit-pass-directions" class="button-group" style="display: none; margin-top: 15px;">
+          <h4 style="width: 100%; margin-bottom: 10px;">Select Direction</h4>
+          <button type="button" class="btn btn-pass-direction" data-dir="LEFT">LEFT</button>
+          <button type="button" class="btn btn-pass-direction" data-dir="CENTER">CENTER</button>
+          <button type="button" class="btn btn-pass-direction" data-dir="RIGHT">RIGHT</button>
+        </div>
+
+        <div id="edit-pass-incomplete" class="button-group" style="display: none; margin-top: 15px;">
+          <button type="button" class="btn btn-pass-option" data-value="PASS_INCOMPLETE">INCOMPLETE</button>
+        </div>
+
+        <!-- Hidden input to store the final outcome -->
+        <input type="hidden" name="actual_outcome" id="edit_actual_outcome" required>
+        
+        <p class="warning-text" style="margin-top: 20px; color: #ff6b6b; font-style: italic;">
+          ⚠️ Warning: Changing the outcome will recalculate all player scores for this play.
+        </p>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" class="btn btn-success">✓ Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+  
+  .modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 0;
+    border: 1px solid #888;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .modal-header {
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .modal-header h2 {
+    margin: 0;
+  }
+  
+  .modal-close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+  }
+  
+  .modal-close:hover,
+  .modal-close:focus {
+    color: #000;
+  }
+  
+  .modal-body {
+    padding: 20px;
+  }
+  
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+  }
+  
+  .btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+</style>
+
+<script>
+  let currentEditPlayId = null;
+  
+  function openEditModal(playId, currentOutcome, playNumber) {
+    currentEditPlayId = playId;
+    document.getElementById('editPlayNumber').textContent = playNumber;
+    document.getElementById('editPlayForm').action = `/admin/games/<%= game.id %>/plays/${playId}/edit`;
+    document.getElementById('editPlayModal').style.display = 'block';
+    
+    // Reset the form
+    document.getElementById('edit_actual_outcome').value = '';
+    document.querySelectorAll('.btn-outcome').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.btn-direction').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.btn-pass-option').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('edit-run-directions').style.display = 'none';
+    document.getElementById('edit-pass-types').style.display = 'none';
+    document.getElementById('edit-pass-directions').style.display = 'none';
+    document.getElementById('edit-pass-incomplete').style.display = 'none';
+  }
+  
+  function closeEditModal() {
+    document.getElementById('editPlayModal').style.display = 'none';
+    currentEditPlayId = null;
+  }
+  
+  // Close modal when clicking outside
+  window.onclick = function(event) {
+    const modal = document.getElementById('editPlayModal');
+    if (event.target === modal) {
+      closeEditModal();
+    }
+  }
+  
+  // Edit modal outcome selection logic
+  document.addEventListener('DOMContentLoaded', function() {
+    const editOutcomeButtons = document.querySelectorAll('#editPlayModal .btn-outcome');
+    const editRunDirections = document.getElementById('edit-run-directions');
+    const editPassTypes = document.getElementById('edit-pass-types');
+    const editPassDirections = document.getElementById('edit-pass-directions');
+    const editPassIncomplete = document.getElementById('edit-pass-incomplete');
+    const editOutcomeInput = document.getElementById('edit_actual_outcome');
+    let selectedEditOutcomeType = null;
+    let selectedEditPassDepth = null;
+    let selectedEditPassDir = null;
+
+    // Handle outcome type selection
+    editOutcomeButtons.forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        selectedEditOutcomeType = this.dataset.outcome;
+        
+        // Update button states
+        editOutcomeButtons.forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Show/hide appropriate buttons
+        editRunDirections.style.display = selectedEditOutcomeType === 'run' ? 'flex' : 'none';
+        editPassTypes.style.display = selectedEditOutcomeType === 'pass' ? 'flex' : 'none';
+        editPassDirections.style.display = 'none';
+        editPassIncomplete.style.display = selectedEditOutcomeType === 'pass' ? 'flex' : 'none';
+        
+        // Clear the outcome input
+        editOutcomeInput.value = '';
+        selectedEditPassDepth = null;
+        selectedEditPassDir = null;
+        
+        // Clear selections
+        document.querySelectorAll('#editPlayModal .btn-direction').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#editPlayModal .btn-pass-depth').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#editPlayModal .btn-pass-direction').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#editPlayModal .btn-pass-option').forEach(btn => btn.classList.remove('active'));
+      });
+    });
+
+    // Handle run direction selection
+    document.querySelectorAll('#editPlayModal .btn-direction').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        editOutcomeInput.value = this.dataset.value;
+        
+        // Update button states
+        document.querySelectorAll('#editPlayModal .btn-direction').forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+
+    // Handle pass depth selection
+    document.querySelectorAll('#editPlayModal .btn-pass-depth').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        selectedEditPassDepth = this.dataset.depth;
+        editPassDirections.style.display = 'flex';
+        
+        // Update button states
+        document.querySelectorAll('#editPlayModal .btn-pass-depth').forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        updateEditPassOutcome();
+      });
+    });
+
+    // Handle pass direction selection
+    document.querySelectorAll('#editPlayModal .btn-pass-direction').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        selectedEditPassDir = this.dataset.dir;
+        
+        // Update button states
+        document.querySelectorAll('#editPlayModal .btn-pass-direction').forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        updateEditPassOutcome();
+      });
+    });
+
+    // Handle incomplete pass
+    document.querySelectorAll('#editPlayModal .btn-pass-option').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        editOutcomeInput.value = this.dataset.value;
+        
+        // Update button states
+        document.querySelectorAll('#editPlayModal .btn-pass-option').forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Clear depth and direction selections
+        document.querySelectorAll('#editPlayModal .btn-pass-depth').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('#editPlayModal .btn-pass-direction').forEach(btn => btn.classList.remove('active'));
+        editPassDirections.style.display = 'none';
+        selectedEditPassDepth = null;
+        selectedEditPassDir = null;
+      });
+    });
+
+    function updateEditPassOutcome() {
+      if (selectedEditPassDepth && selectedEditPassDir) {
+        editOutcomeInput.value = `PASS_${selectedEditPassDepth}_${selectedEditPassDir}`;
+      } else {
+        editOutcomeInput.value = '';
+      }
+    }
+  });
+</script>

@@ -44,6 +44,7 @@ export interface Prediction {
   play_id: number;
   user_id: number;
   predicted_outcome: PlayOutcome;
+  game_breaker: number; // 0 = not used, 1 = used
   points_awarded: number;
   created_at: string;
 }

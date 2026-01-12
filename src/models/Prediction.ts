@@ -9,7 +9,7 @@ export class PredictionModel {
   /**
    * Create or update a prediction
    */
-  static createOrUpdate(playId: number, userId: number, predictedOutcome: PlayOutcome): Prediction {
+  static createOrUpdate(playId: number, userId: number, predictedOutcome: PlayOutcome, gameBreaker: boolean = false): Prediction {
     const db = getDb();
     
     // Check if prediction already exists
@@ -19,18 +19,18 @@ export class PredictionModel {
       // Update existing prediction
       const stmt = db.prepare(`
         UPDATE predictions 
-        SET predicted_outcome = ? 
+        SET predicted_outcome = ?, game_breaker = ?
         WHERE play_id = ? AND user_id = ?
       `);
-      stmt.run(predictedOutcome, playId, userId);
+      stmt.run(predictedOutcome, gameBreaker ? 1 : 0, playId, userId);
       return this.findByPlayAndUser(playId, userId)!;
     } else {
       // Create new prediction
       const stmt = db.prepare(`
-        INSERT INTO predictions (play_id, user_id, predicted_outcome)
-        VALUES (?, ?, ?)
+        INSERT INTO predictions (play_id, user_id, predicted_outcome, game_breaker)
+        VALUES (?, ?, ?, ?)
       `);
-      const result = stmt.run(playId, userId, predictedOutcome);
+      const result = stmt.run(playId, userId, predictedOutcome, gameBreaker ? 1 : 0);
       return this.findById(result.lastInsertRowid as number)!;
     }
   }
@@ -105,5 +105,38 @@ export class PredictionModel {
       ORDER BY pl.sequence_number ASC
     `);
     return stmt.all(gameId, userId) as Prediction[];
+  }
+  
+  /**
+   * Check if user has used Game Breaker in the current drive
+   * A drive resets when down goes back to 1
+   */
+  static hasUsedGameBreakerInDrive(gameId: number, userId: number, currentPlayId: number): boolean {
+    const db = getDb();
+    // Get all plays in the current drive (since the start of the last 1st down, inclusive)
+    const stmt = db.prepare(`
+      WITH current_play AS (
+        SELECT sequence_number, quarter, down
+        FROM plays
+        WHERE id = ?
+      ),
+      last_first_down AS (
+        SELECT MAX(sequence_number) as seq
+        FROM plays
+        WHERE game_id = ?
+          AND down = 1
+          AND sequence_number <= (SELECT sequence_number FROM current_play)
+      )
+      SELECT COUNT(*) as count
+      FROM predictions pred
+      JOIN plays pl ON pl.id = pred.play_id
+      WHERE pl.game_id = ?
+        AND pred.user_id = ?
+        AND pred.game_breaker = 1
+        AND pl.sequence_number >= COALESCE((SELECT seq FROM last_first_down), 1)
+        AND pl.sequence_number <= (SELECT sequence_number FROM current_play)
+    `);
+    const result = stmt.get(currentPlayId, gameId, gameId, userId) as { count: number };
+    return result.count > 0;
   }
 }
