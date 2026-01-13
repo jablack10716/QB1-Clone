@@ -53,12 +53,14 @@ export class AdminController {
     
     const currentPlay = PlayModel.getCurrentPlay(gameId);
     const allPlays = PlayModel.findByGameId(gameId);
+    const lockedBy = currentPlay?.locked_by ? UserModel.findById(currentPlay.locked_by) : undefined;
     
     res.render('admin/console', {
       title: `Admin - ${game.name}`,
       game,
       currentPlay,
       allPlays,
+      lockedBy,
       playOutcomes: Object.values(PlayOutcome),
       PlayStatus,
       GameStatus,
@@ -113,8 +115,14 @@ export class AdminController {
   static lockPlay(req: Request, res: Response): void {
     const gameId = parseInt(req.params.id);
     const playId = parseInt(req.params.playId);
-    
-    PlayModel.updateStatus(playId, PlayStatus.LOCKED);
+
+    const adminId = req.session.user?.id;
+    const locked = PlayModel.lock(playId, adminId);
+
+    if (!locked) {
+      return res.redirect(`/admin/games/${gameId}?error=Play must be open to lock`);
+    }
+
     res.redirect(`/admin/games/${gameId}`);
   }
   
@@ -134,6 +142,15 @@ export class AdminController {
     console.log(`Scoring play ${playId} with outcome: ${actual_outcome}`);
     
     try {
+      const play = PlayModel.findById(playId);
+      if (!play) {
+        return res.redirect(`/admin/games/${gameId}?error=Play not found`);
+      }
+
+      if (play.status !== PlayStatus.LOCKED) {
+        return res.redirect(`/admin/games/${gameId}?error=Play must be locked before scoring`);
+      }
+
       // Set actual outcome and mark as SCORED
       const scoreSuccess = PlayModel.setActualOutcome(playId, actual_outcome as PlayOutcome);
       if (!scoreSuccess) {

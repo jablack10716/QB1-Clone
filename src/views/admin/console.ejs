@@ -42,6 +42,18 @@
           <span class="label">Status:</span>
           <span class="badge badge-<%= currentPlay.status %>"><%= currentPlay.status %></span>
         </div>
+        <% if (currentPlay.locked_at) { %>
+          <div class="play-detail">
+            <span class="label">Locked At:</span>
+            <span class="value"><%= currentPlay.locked_at %></span>
+          </div>
+        <% } %>
+        <% if (lockedBy) { %>
+          <div class="play-detail">
+            <span class="label">Locked By:</span>
+            <span class="value"><%= lockedBy.name %></span>
+          </div>
+        <% } %>
       </div>
       
       <% if (currentPlay.status === PlayStatus.OPEN) { %>

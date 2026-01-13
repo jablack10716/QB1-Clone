@@ -33,6 +33,8 @@ export interface Play {
   distance: number;
   yard_line: string;
   status: PlayStatus;
+  locked_at: string | null;
+  locked_by: number | null;
   actual_outcome: PlayOutcome | null;
   created_at: string;
 }

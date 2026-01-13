@@ -81,6 +81,20 @@ export class PlayModel {
     const stmt = db.prepare('UPDATE plays SET status = ? WHERE id = ?');
     stmt.run(status, id);
   }
+
+  /**
+   * Lock a play and capture metadata
+   */
+  static lock(id: number, lockedBy?: number): boolean {
+    const db = getDb();
+    const stmt = db.prepare(`
+      UPDATE plays
+      SET status = ?, locked_at = datetime('now'), locked_by = ?
+      WHERE id = ? AND status = ?
+    `);
+    const result = stmt.run(PlayStatus.LOCKED, lockedBy ?? null, id, PlayStatus.OPEN);
+    return result.changes > 0;
+  }
   
   /**
    * Set actual outcome and mark as scored
@@ -93,9 +107,9 @@ export class PlayModel {
     const stmt = db.prepare(`
       UPDATE plays 
       SET actual_outcome = ?, status = ? 
-      WHERE id = ?
+      WHERE id = ? AND status = ?
     `);
-    const result = stmt.run(outcome, PlayStatus.SCORED, id);
+    const result = stmt.run(outcome, PlayStatus.SCORED, id, PlayStatus.LOCKED);
     return result.changes > 0;
   }
 }

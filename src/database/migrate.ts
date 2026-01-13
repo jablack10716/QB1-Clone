@@ -41,9 +41,12 @@ export function runMigrations(): void {
       distance INTEGER NOT NULL,
       yard_line TEXT NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('open', 'locked', 'scored')) DEFAULT 'open',
+      locked_at TEXT,
+      locked_by INTEGER,
       actual_outcome TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+      FOREIGN KEY (locked_by) REFERENCES users(id) ON DELETE SET NULL,
       UNIQUE(game_id, sequence_number)
     )
   `);
@@ -67,6 +70,19 @@ export function runMigrations(): void {
   // Add game_breaker column to existing predictions table if it doesn't exist
   try {
     db.exec(`ALTER TABLE predictions ADD COLUMN game_breaker INTEGER NOT NULL DEFAULT 0`);
+  } catch (error) {
+    // Column may already exist, ignore error
+  }
+
+  // Add lock metadata columns to existing plays table if they don't exist
+  try {
+    db.exec(`ALTER TABLE plays ADD COLUMN locked_at TEXT`);
+  } catch (error) {
+    // Column may already exist, ignore error
+  }
+
+  try {
+    db.exec(`ALTER TABLE plays ADD COLUMN locked_by INTEGER`);
   } catch (error) {
     // Column may already exist, ignore error
   }

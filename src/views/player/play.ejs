@@ -316,6 +316,15 @@
             .prediction-status.error .status-text {
               color: #721c24;
             }
+
+            .prediction-status.locked {
+              background: #e9ecef;
+              border-color: #adb5bd;
+            }
+            
+            .prediction-status.locked .status-text {
+              color: #343a40;
+            }
             
             @keyframes successPulse {
               0% { transform: scale(1); }
@@ -400,6 +409,22 @@
             let selectedPassDepth = null;
             let selectedPassDir = null;
             let gameBreakerActive = false;
+
+            const disableAllPredictionInputs = () => {
+              typeButtons.forEach(btn => btn.disabled = true);
+              document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = true);
+              document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = true);
+              document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = true);
+              if (gameBreakerBtn) gameBreakerBtn.disabled = true;
+            };
+
+            const enableAllPredictionInputs = () => {
+              typeButtons.forEach(btn => btn.disabled = false);
+              document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
+              document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
+              document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
+              if (gameBreakerBtn) gameBreakerBtn.disabled = false;
+            };
 
             // Initialize button states based on existing prediction
             const existingPrediction = '<%= userPrediction ? userPrediction.predicted_outcome : '' %>';
@@ -515,11 +540,7 @@
               statusDiv.className = 'prediction-status saving';
               
               // Disable all buttons while saving
-              typeButtons.forEach(btn => btn.disabled = true);
-              document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = true);
-              document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = true);
-              document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = true);
-              if (gameBreakerBtn) gameBreakerBtn.disabled = true;
+              disableAllPredictionInputs();
               
               // Submit via fetch
               const formData = new FormData();
@@ -530,31 +551,34 @@
               
               fetch('/games/<%= game.id %>/plays/<%= currentPlay.id %>/predict', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: { 'Accept': 'application/json' }
               })
-              .then(response => {
+              .then(async response => {
+                if (response.status === 403) {
+                  const data = await response.json().catch(() => ({}));
+                  statusIcon.textContent = '🔒';
+                  statusText.textContent = data.error || 'Predictions locked by admin';
+                  statusDiv.className = 'prediction-status locked';
+                  disableAllPredictionInputs();
+                  setTimeout(() => window.location.reload(), 750);
+                  return;
+                }
+
                 if (response.ok) {
                   statusIcon.textContent = '✓';
                   statusText.textContent = 'Prediction saved: ' + prediction + (gameBreaker ? ' ⚡' : '');
                   statusDiv.className = 'prediction-status saved';
                   
                   // Re-enable buttons
-                  typeButtons.forEach(btn => btn.disabled = false);
-                  document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
-                  document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
-                  document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
-                  if (gameBreakerBtn) gameBreakerBtn.disabled = false;
+                  enableAllPredictionInputs();
                 } else {
                   statusIcon.textContent = '⚠️';
                   statusText.textContent = 'Error saving prediction';
                   statusDiv.className = 'prediction-status error';
                   
                   // Re-enable buttons on error
-                  typeButtons.forEach(btn => btn.disabled = false);
-                  document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
-                  document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
-                  document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
-                  if (gameBreakerBtn) gameBreakerBtn.disabled = false;
+                  enableAllPredictionInputs();
                 }
               })
               .catch(error => {
@@ -563,11 +587,7 @@
                 statusDiv.className = 'prediction-status error';
                 
                 // Re-enable buttons on error
-                typeButtons.forEach(btn => btn.disabled = false);
-                document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = false);
-                document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = false);
-                document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = false);
-                if (gameBreakerBtn) gameBreakerBtn.disabled = false;
+                enableAllPredictionInputs();
               });
             }
 
@@ -734,7 +754,10 @@
       <% } else { %>
         <div class="play-locked">
           <h3>🔒 Predictions Locked</h3>
-          <p>The play is about to start! Wait for the result...</p>
+          <p>The play is about to start! Predictions are locked by admin<% if (lockedBy) { %> (<%= lockedBy.name %>)<% } %>.</p>
+          <% if (currentPlay.locked_at) { %>
+            <p class="lock-time">Locked at: <%= currentPlay.locked_at %></p>
+          <% } %>
           <% if (userPrediction) { %>
             <p class="your-prediction">
               Your prediction: <strong><%= userPrediction.predicted_outcome %></strong>
@@ -1025,14 +1048,135 @@
     sessionStorage.setItem('lastPlayId', currentPlayIdNow.toString());
   <% } %>
   
-  // Auto-refresh to check for play updates
-  const currentPlayStatus = '<%= currentPlay?.status %>';
-  const hasPrediction = <%= userPrediction ? 'true' : 'false' %>;
+  // Poll for status updates every 1 second
+  let lastKnownStatus = '<%= currentPlay?.status || "" %>';
+  let lastKnownPlayId = <%= currentPlay?.id || 0 %>;
   
-  // Always refresh frequently to check for status changes
-  const refreshInterval = 1000; // 1 second
+  const disableAllPredictionInputsForLock = () => {
+    const typeButtons = document.querySelectorAll('.btn-prediction-type');
+    typeButtons.forEach(btn => btn.disabled = true);
+    document.querySelectorAll('.btn-run-direction').forEach(btn => btn.disabled = true);
+    document.querySelectorAll('.btn-pass-depth').forEach(btn => btn.disabled = true);
+    document.querySelectorAll('.btn-pass-direction').forEach(btn => btn.disabled = true);
+    const gameBreakerBtn = document.getElementById('game-breaker-btn');
+    if (gameBreakerBtn) gameBreakerBtn.disabled = true;
+  };
+
+  function pollPlayStatus() {
+    fetch('/api/games/<%= game.id %>/play-status', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+      const currentPlay = data.currentPlay;
+      
+      if (!currentPlay) {
+        // No play yet, continue polling
+        return;
+      }
+
+      // Check if a new play has started (different sequence_number)
+      if (currentPlay.id !== lastKnownPlayId) {
+        console.log('New play detected:', currentPlay.id, 'was:', lastKnownPlayId);
+        // Reload page to reset form for new play
+        window.location.reload();
+        return;
+      }
+
+      // Check if status changed
+      if (currentPlay.status !== lastKnownStatus) {
+        console.log('Play status changed from', lastKnownStatus, 'to', currentPlay.status);
+        lastKnownStatus = currentPlay.status;
+
+        if (currentPlay.status === 'locked') {
+          // Predictions locked - disable inputs and show banner
+          disableAllPredictionInputsForLock();
+          
+          // Show lock banner in prediction-status if visible
+          const statusDiv = document.getElementById('prediction-status');
+          if (statusDiv) {
+            const statusIcon = statusDiv.querySelector('.status-icon');
+            const statusText = statusDiv.querySelector('.status-text');
+            if (statusIcon && statusText) {
+              statusIcon.textContent = '🔒';
+              statusText.textContent = 'Predictions locked by admin';
+              statusDiv.className = 'prediction-status locked';
+            }
+          }
+          
+          // Also disable Game Breaker button
+          const gameBreakerBtn = document.getElementById('game-breaker-btn');
+          if (gameBreakerBtn) gameBreakerBtn.disabled = true;
+        } 
+        else if (currentPlay.status === 'scored') {
+          // Play has been scored - show result modal if not already shown
+          const playId = currentPlay.id;
+          const alreadySeen = sessionStorage.getItem('play_' + playId + '_seen');
+          
+          if (!alreadySeen && data.userPrediction) {
+            const modal = document.getElementById('scoreModal');
+            const modalBody = document.getElementById('scoreModalBody');
+            const points = data.userPrediction.points_awarded || 0;
+            const prediction = data.userPrediction.predicted_outcome;
+            const actualOutcome = currentPlay.actual_outcome;
+            const usedGameBreaker = data.userPrediction.game_breaker ? true : false;
+            
+            console.log('Showing score modal via polling - points:', points);
+            
+            let icon = '';
+            let title = '';
+            let pointsClass = '';
+            
+            if (points === 100) {
+              icon = '🎉';
+              title = 'PERFECT PREDICTION!';
+              pointsClass = 'perfect';
+            } else if (points === 40) {
+              icon = '👍';
+              title = 'Nice Guess!';
+              pointsClass = 'partial';
+            } else {
+              icon = '😐';
+              title = 'Better Luck Next Time';
+              pointsClass = 'zero';
+            }
+            
+            let gameBreakerHTML = '';
+            if (usedGameBreaker) {
+              gameBreakerHTML = '<div class="score-game-breaker-used">⚡ GAME BREAKER USED ⚡</div>';
+            }
+            
+            modalBody.innerHTML = `
+              <div class="score-result-icon">${icon}</div>
+              <div class="score-result-title">${title}</div>
+              ${gameBreakerHTML}
+              <div class="score-result-points ${pointsClass}">+${points} Points</div>
+              <div class="score-result-details">
+                <strong>Your Prediction:</strong> ${prediction}<br>
+                <strong>Actual Outcome:</strong> ${actualOutcome}
+              </div>
+            `;
+            
+            sessionStorage.setItem('play_' + playId + '_seen', 'true');
+            
+            if (modal) {
+              modal.style.display = 'block';
+            }
+          }
+        }
+      }
+    })
+    .catch(error => {
+      console.error('Error polling play status:', error);
+    });
+  }
+
+  // Start polling every 1 second
+  const pollingInterval = setInterval(pollPlayStatus, 1000);
   
-  setTimeout(() => {
-    window.location.reload();
-  }, refreshInterval);
+  // Clean up polling on page unload
+  window.addEventListener('beforeunload', () => {
+    clearInterval(pollingInterval);
+  });
 </script>

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GameModel } from '../models/Game';
 import { PlayModel } from '../models/Play';
 import { PredictionModel } from '../models/Prediction';
+import { UserModel } from '../models/User';
 import { PlayStatus, PlayOutcome } from '../types/enums';
 
 /**
@@ -48,6 +49,7 @@ export class PlayerController {
       // Check if Game Breaker is available (not used in current drive)
       gameBreakerAvailable = !PredictionModel.hasUsedGameBreakerInDrive(gameId, userId, currentPlay.id);
     }
+    const lockedBy = currentPlay?.locked_by ? UserModel.findById(currentPlay.locked_by) : undefined;
     
     res.render('player/play', {
       title: `${game.name}`,
@@ -55,6 +57,7 @@ export class PlayerController {
       currentPlay,
       userPrediction,
       gameBreakerAvailable,
+      lockedBy,
       playOutcomes: Object.values(PlayOutcome),
       PlayStatus,
       user: req.session.user
@@ -68,6 +71,8 @@ export class PlayerController {
     const gameId = parseInt(req.params.id);
     const playId = parseInt(req.params.playId);
     const { predicted_outcome, game_breaker } = req.body;
+
+    const wantsJson = req.headers.accept?.includes('application/json');
     
     if (!predicted_outcome || !Object.values(PlayOutcome).includes(predicted_outcome)) {
       return res.redirect(`/games/${gameId}/play?error=Invalid prediction`);
@@ -76,7 +81,11 @@ export class PlayerController {
     // Check if play is still open
     const play = PlayModel.findById(playId);
     if (!play || play.status !== PlayStatus.OPEN) {
-      return res.redirect(`/games/${gameId}/play?error=Predictions are locked for this play`);
+      const message = 'Predictions are locked for this play';
+      if (wantsJson) {
+        return res.status(403).json({ error: message, status: play?.status || PlayStatus.LOCKED });
+      }
+      return res.status(403).send(message);
     }
     
     const userId = req.session.user!.id;
@@ -91,7 +100,11 @@ export class PlayerController {
     }
     
     PredictionModel.createOrUpdate(playId, userId, predicted_outcome as PlayOutcome, useGameBreaker);
-    
+
+    if (wantsJson) {
+      return res.json({ success: true });
+    }
+
     res.redirect(`/games/${gameId}/play`);
   }
   
